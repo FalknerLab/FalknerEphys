@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def import_phy(phy_path, offset=0):
+def load_phy(phy_path, offset=0):
     """
 
     Parameters
