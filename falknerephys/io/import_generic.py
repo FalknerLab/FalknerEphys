@@ -1,7 +1,8 @@
 import numpy as np
+import os
 
 
-def load_phy(phy_path, offset=0):
+def load_phy(phy_path, offset=0, ephys_hz=25000):
     """
 
     Parameters
@@ -10,6 +11,8 @@ def load_phy(phy_path, offset=0):
         Directory containing all Phy output files
     offset : int, optional
         Number of samples (based on ephys sampling rate) to be subtracted from spike times
+    ephys_hz: int, optional
+        Recording frequency of ephys data
 
     Returns
     -------
@@ -33,6 +36,8 @@ def load_phy(phy_path, offset=0):
     for c in keep_clus:
         inds = np.where(spk_ids == c)
         g_spks = spks[inds]
+        # compute relative spike times based on offset
         rel_spk_ts = g_spks.squeeze().astype(int) - offset
-        ephys_data[str(c)] = rel_spk_ts[rel_spk_ts > 0]
+        # ignore spikes before offset and convert to seconds
+        ephys_data[str(c)] = rel_spk_ts[rel_spk_ts > 0] / ephys_hz
     return ephys_data
