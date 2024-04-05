@@ -1,6 +1,7 @@
-yaml
 numpy
 nptdms
 matplotlib
-sklearn
+scikit-learn
 scipy
+PyYAML
+h5py
