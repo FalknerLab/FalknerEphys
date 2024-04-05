@@ -1,2 +1,2 @@
 # White Matter Demo
-![](WM_demo.svg)
+![](wm/WM_demo.svg)
