@@ -7,7 +7,7 @@ def resample_spikes(spikes, in_hz, out_hz):
     return resamp_spikes
 
 
-def bin_fr(spikes, fs, bin_ms, length_s, same_shape=False):
+def bin_fr(spikes, fs, bin_ms, length_s, same_shape=True):
     bin_s = bin_ms/1000
     bin_samps = int(bin_s*fs)
     num_bins = np.round(length_s/bin_s).astype(int)
@@ -51,3 +51,14 @@ def gaus_fr(spks, fs, time_width_ms, out_len_s):
     conv_spks = np.convolve(spks_t, kern, mode='same')
     return spks_t, conv_spks
 
+
+def spikes_to_timeseries(unit_dict, smooth_func=square_fr, ephys_hz=25000, out_hz=40, ts_len_s=60, time_win_ms=50):
+    units = []
+    t_vec = []
+    for ind, u in enumerate(unit_dict.keys()):
+        spks = resample_spikes(unit_dict[u], ephys_hz, out_hz)
+        t, fr = smooth_func(spks, out_hz, time_win_ms, ts_len_s)
+        units.append(fr)
+        t_vec = t
+    spk_data = np.array(units).T
+    return t_vec, spk_data
