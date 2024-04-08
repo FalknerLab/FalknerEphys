@@ -2,15 +2,15 @@ import numpy as np
 import os
 
 
-def load_phy(phy_path, offset=0, ephys_hz=25000):
+def load_phy(phy_path, offset_s=0, ephys_hz=25000):
     """
 
     Parameters
     ----------
     phy_path : str
         Directory containing all Phy output files
-    offset : int, optional
-        Number of samples (based on ephys sampling rate) to be subtracted from spike times
+    offset_s : float, optional
+        Number of seconds to be subtracted from spike times
     ephys_hz: int, optional
         Recording frequency of ephys data
 
@@ -37,7 +37,7 @@ def load_phy(phy_path, offset=0, ephys_hz=25000):
         inds = np.where(spk_ids == c)
         g_spks = spks[inds]
         # compute relative spike times based on offset
-        rel_spk_ts = g_spks.squeeze().astype(int) - offset
+        rel_spk_ts = g_spks.squeeze().astype(int)
         # ignore spikes before offset and convert to seconds
-        ephys_data[str(c)] = rel_spk_ts[rel_spk_ts > 0] / ephys_hz
+        ephys_data[str(c)] = (rel_spk_ts[rel_spk_ts > 0] / ephys_hz) - offset_s
     return ephys_data

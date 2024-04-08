@@ -12,8 +12,8 @@ def import_wm_data(phy_path, yaml_file=None, ephys_start=0, ephys_hz=25000):
         yaml_file = open(yaml_file)
         start_times = yaml.safe_load(yaml_file)
         offset_s = start_times['motif_start'] - start_times['wm_start']
-        offset = round(offset_s * ephys_hz)
-    ephys_data = load_phy(phy_path, offset=offset + ephys_start)
+        offset = offset_s
+    ephys_data = load_phy(phy_path, offset_s=offset + (ephys_start/ephys_hz), ephys_hz=ephys_hz)
     return ephys_data
 
 
@@ -87,3 +87,10 @@ def show_h5(h5_path, ax=None):
     handles, labels = ax.get_legend_handles_labels()
     plt.legend(handles, labels, loc='upper right')
 
+
+def get_starts(h5_path):
+    h5_file = h5py.File(h5_path, 'r')
+    fs = h5_file['ScanRate'][0]
+    wm_start = np.where(h5_file['wm_start'])[0][0] / fs
+    vid_start = np.where(h5_file['video_start'])[0][0] / fs
+    return wm_start, vid_start
