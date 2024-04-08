@@ -4,9 +4,16 @@ from scipy.cluster import hierarchy
 from scipy.spatial.distance import pdist
 
 
-def jitter_plot(spk_ts, ephys_hz=25000):
-    spk_s = spks/ephys_hz
-    plt.scatter(spk_s, 2*np.ones_like(spk_s) + np.random.uniform(low=-1, size=len(spks)), s=0.5)
+def jitter_plot(spk_s, ax=None):
+    if ax is None:
+        ax = plt.gca()
+    ax.scatter(spk_s, 2*np.ones_like(spk_s) + np.random.uniform(low=-1, size=len(spk_s)), s=0.5)
+
+
+def fr_heatmap(end_t, unit_fr, unit_ids=None, ax=None):
+    if ax is None:
+        ax = plt.gca()
+    ax.imshow(unit_fr.T, aspect='auto', interpolation='none')
 
 
 def fr_per_xy(ax, spks, x, y, num_bins=30, xy_range=None):
