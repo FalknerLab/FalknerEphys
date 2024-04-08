@@ -1,6 +1,17 @@
 import numpy as np
 
 
+def get_time_win(ephys_dict, start_time=0, end_time=0):
+    filt_dict = dict()
+    for k in ephys_dict.keys():
+        spikes = ephys_dict[k]
+        filt_spikes = spikes[np.logical_and(spikes > start_time, spikes < end_time)]
+        if len(filt_spikes) > 0:
+            filt_spikes = filt_spikes - filt_spikes[0]
+        filt_dict[k] = filt_spikes
+    return filt_dict
+
+
 def resample_spikes(spikes, in_hz, out_hz):
     resamp_spikes = float(out_hz)*(spikes/float(in_hz))
     resamp_spikes = np.round(resamp_spikes).astype(int)
@@ -26,9 +37,10 @@ def bin_fr(spikes, fs, bin_ms, length_s, same_shape=True):
 
 def square_fr(spks, fs, time_width_ms, out_len_s):
     win_samps = int(fs*(time_width_ms/1000))
+    spk_inds = np.round(spks * fs).astype(int)
     spks_t = np.zeros(round(fs*out_len_s))
-    u_ts = np.unique(spks)
-    sum_spk = [np.sum(spks == i) for i in u_ts]
+    u_ts = np.unique(spk_inds)
+    sum_spk = [np.sum(spk_inds == i) for i in u_ts]
     spks_t[u_ts] = sum_spk
     kern = np.ones(win_samps)
     conv_spks = np.convolve(spks_t, kern, mode='same')
@@ -55,9 +67,8 @@ def gaus_fr(spks, fs, time_width_ms, out_len_s):
 def spikes_to_timeseries(unit_dict, smooth_func=square_fr, ephys_hz=25000, out_hz=40, ts_len_s=60, time_win_ms=50):
     units = []
     t_vec = []
-    for ind, u in enumerate(unit_dict.keys()):
-        spks = resample_spikes(unit_dict[u], ephys_hz, out_hz)
-        t, fr = smooth_func(spks, out_hz, time_win_ms, ts_len_s)
+    for u in unit_dict.keys():
+        t, fr = smooth_func(unit_dict[u], out_hz, time_win_ms, ts_len_s)
         units.append(fr)
         t_vec = t
     spk_data = np.array(units).T
