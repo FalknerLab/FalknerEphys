@@ -39,4 +39,4 @@ Where {token} is generated from FalknerLab GitHub periodically and moved to the 
 [Demo scripts](falknerephys/demos/) show processing steps for the different Falkner Lab data streams
 
 Examples include:<br>
--White Matter wireless recordings in the territory rig
+-White Matter wireless recordings in home cage
