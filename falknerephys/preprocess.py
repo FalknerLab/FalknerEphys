@@ -18,21 +18,20 @@ def resample_spikes(spikes, in_hz, out_hz):
     return resamp_spikes
 
 
-def bin_fr(spikes, fs, bin_ms, length_s, same_shape=True):
-    bin_s = bin_ms/1000
-    bin_samps = int(bin_s*fs)
-    num_bins = np.round(length_s/bin_s).astype(int)
-    binned = np.zeros(num_bins)
-    for i in range(num_bins):
-        bin_spks = np.logical_and(spikes > i*bin_samps, spikes < (i+1)*bin_samps)
-        binned[i] = np.sum(bin_spks)
-    if same_shape:
-        ups_binned = []
-        for b in binned:
-            [ups_binned.append(b) for n in range(bin_samps)]
-        binned = np.array(ups_binned)
-    time_s = np.linspace(0, length_s, num_bins)
-    return time_s, binned/bin_s
+def bin_fr(spikes, fs, bin_ms, length_s):
+    bin_out = np.zeros(fs*length_s)
+    bin_sz_ind = round(fs * bin_ms / 1000)
+    spike_inds = spikes * fs
+    num_i = np.floor(len(bin_out) / bin_sz_ind).astype(int)
+    for i in range(num_i):
+        bin_spks = np.logical_and(spike_inds > i * bin_sz_ind, spike_inds < (i + 1) * bin_sz_ind)
+        end_ind = i*bin_sz_ind + bin_sz_ind
+        if end_ind > len(bin_out):
+            end_ind = len(bin_out)
+        spk_cnt = sum(bin_spks)
+        bin_out[i*bin_sz_ind:end_ind] = spk_cnt
+    time_vec = np.linspace(0, length_s, len(bin_out))
+    return time_vec, bin_out
 
 
 def square_fr(spks, fs, time_width_ms, out_len_s):
@@ -51,17 +50,16 @@ def square_fr(spks, fs, time_width_ms, out_len_s):
 
 def gaus_fr(spks, fs, time_width_ms, out_len_s):
     win_samps = fs*(time_width_ms/1000)
-    spks_t = np.zeros(fs*out_len_s)
-    u_ts = np.unique(spks)
-    sum_spk = [np.sum(spks == i) for i in u_ts]
-    spks_t[u_ts] = sum_spk
-    sig = 1
-    # r = range(-int(win_samps / 2), int(win_samps / 2) + 1)
-    # kern = [1 / (sig * np.sqrt(2 * np.pi)) * np.exp(-float(x) ** 2 / (2 * sig ** 2)) for x in r]
-    x = np.arange(-3*sig, 3*sig, 1/len(spks_t))
+    spk_inds = np.round(spks * fs).astype(int)
+    spks_t = np.zeros(round(fs*out_len_s))
+    u_ts, u_cnts = np.unique(spk_inds, return_counts=True)
+    spks_t[u_ts] = u_cnts
+    sig = 5
+    x = np.linspace(-sig, sig, time_width_ms)
     kern = np.exp(-(x / sig) ** 2 / 2)
     conv_spks = np.convolve(spks_t, kern, mode='same')
-    return spks_t, conv_spks
+    t = np.linspace(0, out_len_s, len(spks_t))
+    return t, conv_spks
 
 
 def spikes_to_timeseries(unit_dict, smooth_func=square_fr, ephys_hz=25000, out_hz=40, ts_len_s=60, time_win_ms=50):

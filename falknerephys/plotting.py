@@ -8,17 +8,30 @@ def jitter_plot(spk_s, ax=None):
     if ax is None:
         ax = plt.gca()
     ax.scatter(spk_s, 2*np.ones_like(spk_s) + np.random.uniform(low=-1, size=len(spk_s)), s=0.5)
+    ax.set_xlabel('Time (s)')
+    ax.set_yticks([])
 
 
-def fr_heatmap(end_t, unit_fr, unit_ids=None, ax=None):
+def fr_heatmap(unit_fr, ax=None, unit_ids=None, hz=None, x_tick_s=10, fr_min=0, fr_max=25):
     if ax is None:
         ax = plt.gca()
-    ax.imshow(unit_fr.T, aspect='auto', interpolation='none')
+    ax.imshow(unit_fr.T, aspect='auto', interpolation='none', vmin=fr_min, vmax=fr_max)
+    num_samps, num_us = np.shape(unit_fr)
+    if hz is not None:
+        x_tick = np.round(np.arange(0, num_samps, x_tick_s*hz))
+        x_tick_labels = x_tick / hz
+        ax.set_xticks(x_tick)
+        ax.set_xticklabels(x_tick_labels)
+    if unit_ids is not None:
+        ax.set_yticks(np.arange(num_us))
+        ax.set_yticklabels(unit_ids)
+    ax.set_ylabel('Unit ID')
+    ax.set_xlabel('Time (s)')
 
 
-def fr_per_xy(ax, spks, x, y, num_bins=30, xy_range=None):
+def fr_per_xy(ax, spk_s, x, y, num_bins=30, xy_range=None, xy_hz=40, fr_min=0, fr_max=25):
     ## Count indices in spks based on binned 2D locations using x and y
-
+    spks = np.round(spk_s * xy_hz).astype(int)
     if xy_range is None:
         xy_range = np.array([[np.nanmin(x), np.nanmax(x)], [np.nanmin(y), np.nanmax(y)]])
 
@@ -26,12 +39,13 @@ def fr_per_xy(ax, spks, x, y, num_bins=30, xy_range=None):
     spks_xy, _, _ = np.histogram2d(x[spks], y[spks], bins=num_bins, range=xy_range)
     total_xy[total_xy == 0] = np.nan
     norm_fr = spks_xy / (total_xy/40)
-    # p = ax.pcolor(norm_fr.T, vmin=0, vmax=20)
-    p = ax.pcolor(norm_fr.T, vmin=0, vmax=25)
-    for pos in ['right', 'top', 'bottom', 'left']:
-        ax.spines[pos].set_visible(False)
-    ax.tick_params(left=False, right=False, labelleft=False, labelbottom=False, bottom=False)
-    return p
+    im = ax.imshow(norm_fr.T, extent=(xy_range[0, 0], xy_range[0, 1], xy_range[1, 0], xy_range[1, 1]),
+              origin='lower', aspect='auto', interpolation='none', vmin=fr_min, vmax=fr_max)
+    # p = ax.pcolor(norm_fr.T, vmin=fr_min, vmax=fr_max)
+    # for pos in ['right', 'top', 'bottom', 'left']:
+    #     ax.spines[pos].set_visible(False)
+    # ax.tick_params(left=False, right=False, labelleft=False, labelbottom=False, bottom=False)
+    return im
 
 
 def psth_per_unit(data, behav):
@@ -98,3 +112,11 @@ def make_psth(unit_fr, x_data, bin_sz=80):
     for b in range(max(bin_id)):
         psth.append(np.mean(fr_no_nan[bin_id == b]))
     return bin_edges, psth
+
+
+def set_labels(title, xlabel, ylabel, ax=None):
+    if ax is None:
+        ax = plt.gca()
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
