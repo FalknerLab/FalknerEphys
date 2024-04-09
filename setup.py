@@ -1,4 +1,4 @@
-from setuptools import find_packages, setup
+from setuptools import find_namespace_packages, setup
 
 with open("requirements.txt") as f:
     reqs = f.readlines()
@@ -10,7 +10,7 @@ setup(
     url="https://github.com/FalknerLab/FalknerEphys.git",
     author="David Allen, Nancy Mack, Bartul Mimica",
     author_email="falknermice@gmail.com",
-    packages=find_packages(),
+    packages=find_namespace_packages(),
     python_requires=">=3.8",
     install_requires=reqs,
     license_files=("LICENCE",),
