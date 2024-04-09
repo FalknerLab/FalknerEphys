@@ -5,6 +5,7 @@ from falknerephys.preprocess import get_time_win, bin_fr, square_fr, gaus_fr, sp
 from falknerephys.io import whitematter as wm
 from falknerephys.plotting import fr_heatmap, set_labels, jitter_plot, fr_per_xy
 from falknerephys.behavior import get_sleap_data
+import os
 
 
 def run_demo(data_path):
@@ -75,5 +76,6 @@ def run_demo(data_path):
 
 
 if __name__ == '__main__':
-    run_demo('wm')
+    this_dir = os.path.split(os.path.abspath(__file__))[0]
+    run_demo(os.path.join(this_dir, 'wm'))
     plt.show()
