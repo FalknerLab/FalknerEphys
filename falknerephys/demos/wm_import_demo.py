@@ -8,26 +8,17 @@ from falknerephys.behavior import get_sleap_data
 import os
 
 
-def run_demo(*args, f=None, example_id=41):
-    if len(args) > 0:
-        data_path = args[0]
-    else:
-        this_dir = os.path.split(os.path.abspath(__file__))[0]
-        data_path = os.path.join(this_dir, 'wm')
-
+def run_demo(path=None, f=None, example_id=41):
     if f is None:
         f = plt.figure()
 
-    daq_h5 = os.path.join(data_path, 'wm_demo_DAQ.h5')
-    slp_h5 = os.path.join(data_path, 'wm_demo_SLEAP.h5')
-
-    print('Plotting DAQ data...')
+    # Load and plot DAQ Data
+    daq_h5, phy_path, slp_h5 = get_demo_data_paths(path)
     gs = GridSpec(4, 5)
     daq_ax = f.add_subplot(gs[0, :2])
-    wm.show_h5(daq_h5, ax=daq_ax)
+    wm.show_daq(daq_h5, ax=daq_ax)
 
-    print('Loading Phy data...')
-    phy_path = data_path + '/phy'
+    # Load ephys data for first 60s after video start
     unit_dict = wm.load_phy(phy_path)
     wm_start, vid_start = wm.get_starts(daq_h5)
     start_t = vid_start - wm_start
@@ -72,7 +63,6 @@ def run_demo(*args, f=None, example_id=41):
         this_ax.set_xlim(0, 60)
         this_ax.set_title('Example unit smoothed: ' + method[ind])
         this_ax.set_ylabel(ylabs[ind])
-    vel_ax.plot(ts, s_spks, c='b')
 
     # FR heatmap over XY position
     fr_hm_ax = f.add_subplot(gs[:, 4:])
@@ -83,6 +73,26 @@ def run_demo(*args, f=None, example_id=41):
     plt.colorbar(hm_im, label='Hz', location='bottom')
     plt.subplots_adjust(wspace=0.6, hspace=0.6)
     plt.show()
+
+
+def get_demo_data_paths(path=None):
+    if path is not None:
+        data_path = path
+    else:
+        this_dir = os.path.split(os.path.abspath(__file__))[0]
+        data_path = os.path.join(this_dir, 'wm')
+    daq_h5 = os.path.join(data_path, 'wm_demo_DAQ.h5')
+    slp_h5 = os.path.join(data_path, 'wm_demo_SLEAP.h5')
+    phy_path = os.path.join(data_path, 'phy')
+    return daq_h5, phy_path, slp_h5
+
+
+def get_demo_data():
+    daq_h5, phy_path, slp_h5 = get_demo_data_paths()
+    daq_data = wm.get_daq_data(daq_h5)
+    ephys_data = wm.load_phy(phy_path)
+    slp_data = get_sleap_data(slp_h5, (638, 518), 7.382)
+    return daq_data, ephys_data, slp_data
 
 
 if __name__ == '__main__':
