@@ -15,8 +15,8 @@ def run_demo(*args):
         this_dir = os.path.split(os.path.abspath(__file__))[0]
         data_path = os.path.join(this_dir, 'wm')
 
-    daq_h5 = data_path + '/wm_demo_DAQ.h5'
-    slp_h5 = data_path + '/wm_demo_SLEAP.h5'
+    daq_h5 = os.path.join(data_path, 'wm_demo_DAQ.h5')
+    slp_h5 = os.path.join(data_path, 'wm_demo_SLEAP.h5')
 
     print('Plotting DAQ data...')
     f = plt.figure()
@@ -57,7 +57,7 @@ def run_demo(*args):
     jit_ax.set_xlim(0, 60)
     jit_ax.set_title('Unit ' + ex_u + ' Spikes')
 
-    # Do preprocessing examples
+    # Preprocessing example plots
     smooth_bin_ms = 100
     proc_funcs = [bin_fr, square_fr, gaus_fr]
     method = ['binned', 'moving average', 'gaussian']
