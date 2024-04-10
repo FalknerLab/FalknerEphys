@@ -8,12 +8,15 @@ from falknerephys.behavior import get_sleap_data
 import os
 
 
-def run_demo(*args):
+def run_demo(*args, f=None):
     if len(args) > 0:
         data_path = args[0]
     else:
         this_dir = os.path.split(os.path.abspath(__file__))[0]
         data_path = os.path.join(this_dir, 'wm')
+
+    if f is None:
+        f = plt.figure()
 
     daq_h5 = os.path.join(data_path, 'wm_demo_DAQ.h5')
     slp_h5 = os.path.join(data_path, 'wm_demo_SLEAP.h5')
