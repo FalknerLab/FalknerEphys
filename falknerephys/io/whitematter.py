@@ -70,17 +70,12 @@ def show_tdms(tdms_path, ax=None):
         ax.plot(times, i + norm_t, label=labs[i])
 
 
-def show_h5(h5_path, ax=None):
+def show_daq(h5_path, ax=None):
     if ax is None:
         ax = plt.gca()
-    h5_file = h5py.File(h5_path, 'r')
-    fs = h5_file['ScanRate'][0]
-    names = ['wm_sync', 'wm_start', 'video_start', 'stim']
-    labs = ['Ephys Sync', 'Ephys Start', 'Video Start', 'Stimuli']
-    for i, k in enumerate(names):
-        t = h5_file[k][:].astype(int)
-        times = np.linspace(0, len(t) / fs, len(t))
-        ax.plot(times, i + (0.1 * i) + t, label=labs[i])
+    daq_data, times, labs = get_daq_data(h5_path)
+    for i, trace in enumerate(daq_data):
+        ax.plot(times, i + (0.1 * i) + trace, label=labs[i])
     ax.set_title('DAQ TTLs')
     ax.set_xlabel('Time (s)')
     ax.set_yticks([])
@@ -94,3 +89,17 @@ def get_starts(h5_path):
     wm_start = np.where(h5_file['wm_start'])[0][0] / fs
     vid_start = np.where(h5_file['video_start'])[0][0] / fs
     return wm_start, vid_start
+
+
+def get_daq_data(h5_path):
+    h5_file = h5py.File(h5_path, 'r')
+    fs = h5_file['ScanRate'][0]
+    names = ['wm_sync', 'wm_start', 'video_start', 'stim']
+    daq_mat = []
+    times = []
+    for k in names:
+        trace = h5_file[k][:].astype(int)
+        times = np.linspace(0, len(trace) / fs, len(trace))
+        daq_mat.append(trace)
+    daq_mat = np.array(daq_mat)
+    return daq_mat, times, names
