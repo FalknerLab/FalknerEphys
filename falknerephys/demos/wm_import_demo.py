@@ -8,7 +8,12 @@ from falknerephys.behavior import get_sleap_data
 import os
 
 
-def run_demo(data_path):
+def run_demo(*args):
+    if len(args) > 0:
+        data_path = args[0]
+    else:
+        this_dir = os.path.split(os.path.abspath(__file__))[0]
+        data_path = os.path.join(this_dir, 'wm')
 
     daq_h5 = data_path + '/wm_demo_DAQ.h5'
     slp_h5 = data_path + '/wm_demo_SLEAP.h5'
@@ -73,9 +78,5 @@ def run_demo(data_path):
     fr_hm_ax.set_ylim(-25, 25)
     plt.colorbar(hm_im, label='Hz', location='bottom')
     plt.subplots_adjust(wspace=0.6, hspace=0.6)
-
-
-if __name__ == '__main__':
-    this_dir = os.path.split(os.path.abspath(__file__))[0]
-    run_demo(os.path.join(this_dir, 'wm'))
     plt.show()
+
