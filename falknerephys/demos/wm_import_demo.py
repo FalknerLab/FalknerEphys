@@ -8,7 +8,7 @@ from falknerephys.behavior import get_sleap_data
 import os
 
 
-def run_demo(*args, f=None):
+def run_demo(*args, f=None, example_id=41):
     if len(args) > 0:
         data_path = args[0]
     else:
@@ -22,7 +22,6 @@ def run_demo(*args, f=None):
     slp_h5 = os.path.join(data_path, 'wm_demo_SLEAP.h5')
 
     print('Plotting DAQ data...')
-    f = plt.figure()
     gs = GridSpec(4, 5)
     daq_ax = f.add_subplot(gs[0, :2])
     wm.show_h5(daq_h5, ax=daq_ax)
@@ -38,7 +37,8 @@ def run_demo(*args, f=None):
     hm_hz = 100
     _, hm = spikes_to_timeseries(filt_dict, out_hz=hm_hz, ts_len_s=60, smooth_func=gaus_fr)
     hm_ax = f.add_subplot(gs[1:3, :2])
-    unit_labs = np.array(list(unit_dict.keys()))
+    unit_keys = np.array(list(unit_dict.keys()))
+    unit_labs = unit_keys.copy()
     sel_vec = (np.arange(len(unit_labs)) % 5).astype(bool)
     unit_labs[sel_vec] = ''
     fr_heatmap(hm, ax=hm_ax, hz=hm_hz, unit_ids=unit_labs)
@@ -53,7 +53,7 @@ def run_demo(*args, f=None):
     vel_ax.set_xlim(0, 60)
 
     # Do sample unit processing plot
-    ex_u = unit_labs[0]
+    ex_u = unit_keys[example_id]
     ex_spks = filt_dict[ex_u]
     jit_ax = f.add_subplot(gs[0, 2:4])
     jitter_plot(ex_spks, ax=jit_ax)
@@ -72,6 +72,7 @@ def run_demo(*args, f=None):
         this_ax.set_xlim(0, 60)
         this_ax.set_title('Example unit smoothed: ' + method[ind])
         this_ax.set_ylabel(ylabs[ind])
+    vel_ax.plot(ts, s_spks, c='b')
 
     # FR heatmap over XY position
     fr_hm_ax = f.add_subplot(gs[:, 4:])
@@ -83,3 +84,6 @@ def run_demo(*args, f=None):
     plt.subplots_adjust(wspace=0.6, hspace=0.6)
     plt.show()
 
+
+if __name__ == '__main__':
+    run_demo()
