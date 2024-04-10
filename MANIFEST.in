@@ -1,0 +1,2 @@
+recursive-include falknerephys/demos/wm *
+include README.md
