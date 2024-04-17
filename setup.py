@@ -8,7 +8,7 @@ setup(
     version="0.0.1",
     description="Analyses code for Falkner Lab silicon probe recordings",
     url="https://github.com/FalknerLab/FalknerEphys.git",
-    author="David Allen, Nancy Mack, Bartul Mimica",
+    author="David Allen, Nancy Mack, Bartul Mimica, Stefan N Oline",
     author_email="falknermice@gmail.com",
     packages=find_namespace_packages(),
     include_package_data=True,
