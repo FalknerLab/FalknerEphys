@@ -18,15 +18,11 @@ def run_demo(path=None, f=None, example_id=41):
     daq_ax = f.add_subplot(gs[0, :2])
     wm.show_daq(daq_h5, ax=daq_ax)
 
-    # Load ephys data for first 60s after video start
-    unit_dict = wm.load_phy(phy_path)
-    wm_start, vid_start = wm.get_starts(daq_h5)
-    start_t = vid_start - wm_start
-    filt_dict = get_time_win(unit_dict, start_time=start_t, end_time=start_t + 60)
+    daq_data, unit_dict, t, x, y, v = get_demo_data()
 
     # Make Heatmap
     hm_hz = 100
-    _, hm = spikes_to_timeseries(filt_dict, out_hz=hm_hz, ts_len_s=60, smooth_func=gaus_fr)
+    _, hm = spikes_to_timeseries(unit_dict, out_hz=hm_hz, ts_len_s=60, smooth_func=gaus_fr)
     hm_ax = f.add_subplot(gs[1:3, :2])
     unit_keys = np.array(list(unit_dict.keys()))
     unit_labs = unit_keys.copy()
@@ -35,17 +31,15 @@ def run_demo(path=None, f=None, example_id=41):
     fr_heatmap(hm, ax=hm_ax, hz=hm_hz, unit_ids=unit_labs)
     hm_ax.set_title('Firing rate first 60s after video start')
 
-    # Get sleap data, plot velocity
-    t, x, y, vel = get_sleap_data(slp_h5, (638, 518), 7.382)
-    f60s = t < 60
+
     vel_ax = f.add_subplot(gs[3, :2])
-    vel_ax.plot(t[f60s], vel[f60s], 'k')
+    vel_ax.plot(t, v, 'k')
     set_labels('Mouse velocity', 'Time (s)', 'cm/s')
     vel_ax.set_xlim(0, 60)
 
     # Do sample unit processing plot
     ex_u = unit_keys[example_id]
-    ex_spks = filt_dict[ex_u]
+    ex_spks = unit_dict[ex_u]
     jit_ax = f.add_subplot(gs[0, 2:4])
     jitter_plot(ex_spks, ax=jit_ax)
     jit_ax.set_xlim(0, 60)
@@ -91,8 +85,20 @@ def get_demo_data():
     daq_h5, phy_path, slp_h5 = get_demo_data_paths()
     daq_data = wm.get_daq_data(daq_h5)
     ephys_data = wm.load_phy(phy_path)
-    slp_data = get_sleap_data(slp_h5, (638, 518), 7.382)
-    return daq_data, ephys_data, slp_data
+
+    # Load ephys data for first 60s after video start
+    wm_start, vid_start = wm.get_starts(daq_h5)
+    start_t = vid_start - wm_start
+    filt_dict = get_time_win(ephys_data, start_time=start_t, end_time=start_t + 60)
+
+    # Get SLEAP first 60s
+    t, x, y, vel = get_sleap_data(slp_h5, (638, 518), 7.382)
+    f60s = t < 60
+    t = t[f60s]
+    v = vel[f60s]
+    x = x[f60s]
+    y = y[f60s]
+    return daq_data, filt_dict, t, x, y, v
 
 
 if __name__ == '__main__':
