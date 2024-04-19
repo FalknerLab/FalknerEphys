@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
 
 def get_time_win(ephys_dict, start_time=0, end_time=0):
