@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 def get_time_win(ephys_dict, start_time=0, end_time=0):
@@ -41,7 +42,7 @@ def square_fr(spks, fs, time_width_ms, out_len_s):
     u_ts = np.unique(spk_inds)
     sum_spk = [np.sum(spk_inds == i) for i in u_ts]
     spks_t[u_ts] = sum_spk
-    kern = np.ones(win_samps)
+    kern = np.ones(win_samps) / win_samps
     conv_spks = np.convolve(spks_t, kern, mode='same')
     fr = conv_spks/(time_width_ms/1000)
     t = np.linspace(0, out_len_s, len(fr))
@@ -49,14 +50,15 @@ def square_fr(spks, fs, time_width_ms, out_len_s):
 
 
 def gaus_fr(spks, fs, time_width_ms, out_len_s):
-    win_samps = fs*(time_width_ms/1000)
+    win_samps = fs*(time_width_ms/1000)/2
     spk_inds = np.round(spks * fs).astype(int)
     spks_t = np.zeros(round(fs*out_len_s))
     u_ts, u_cnts = np.unique(spk_inds, return_counts=True)
     spks_t[u_ts] = u_cnts
-    sig = 5
-    x = np.linspace(-sig, sig, time_width_ms)
+    sig = win_samps/3
+    x = np.linspace(-fs/2, fs/2, fs)
     kern = np.exp(-(x / sig) ** 2 / 2)
+    kern_norm = kern / sum(kern)
     conv_spks = np.convolve(spks_t, kern, mode='same')
     t = np.linspace(0, out_len_s, len(spks_t))
     return t, conv_spks
