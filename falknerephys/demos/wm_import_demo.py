@@ -21,8 +21,9 @@ def run_demo(path=None, f=None, example_id=41):
     daq_data, unit_dict, t, x, y, v = get_demo_data()
 
     # Make Heatmap
-    hm_hz = 100
-    _, hm = spikes_to_timeseries(unit_dict, out_hz=hm_hz, ts_len_s=60, smooth_func=gaus_fr)
+    hm_hz = 1000
+    smooth_bin_ms = 200
+    _, hm = spikes_to_timeseries(unit_dict, out_hz=hm_hz, ts_len_s=60, smooth_func=gaus_fr, time_win_ms=smooth_bin_ms)
     hm_ax = f.add_subplot(gs[1:3, :2])
     unit_keys = np.array(list(unit_dict.keys()))
     unit_labs = unit_keys.copy()
@@ -46,7 +47,6 @@ def run_demo(path=None, f=None, example_id=41):
     jit_ax.set_title('Unit ' + ex_u + ' Spikes')
 
     # Preprocessing example plots
-    smooth_bin_ms = 100
     proc_funcs = [bin_fr, square_fr, gaus_fr]
     method = ['binned', 'moving average', 'gaussian']
     ylabs = ['# Spikes', 'Hz', 'Hz']
