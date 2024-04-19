@@ -44,7 +44,7 @@ def square_fr(spks, fs, time_width_ms, out_len_s):
     spks_t[u_ts] = sum_spk
     kern = np.ones(win_samps) / win_samps
     conv_spks = np.convolve(spks_t, kern, mode='same')
-    fr = conv_spks/(time_width_ms/1000)
+    fr = conv_spks * fs
     t = np.linspace(0, out_len_s, len(fr))
     return t, fr
 
@@ -61,7 +61,8 @@ def gaus_fr(spks, fs, time_width_ms, out_len_s):
     kern_norm = kern / sum(kern)
     conv_spks = np.convolve(spks_t, kern_norm, mode='same')
     t = np.linspace(0, out_len_s, len(spks_t))
-    return t, conv_spks
+    fr = conv_spks * fs
+    return t, fr
 
 
 def spikes_to_timeseries(unit_dict, smooth_func=square_fr, ephys_hz=25000, out_hz=40, ts_len_s=60, time_win_ms=50):
