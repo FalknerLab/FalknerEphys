@@ -59,7 +59,7 @@ def gaus_fr(spks, fs, time_width_ms, out_len_s):
     x = np.linspace(-fs/2, fs/2, fs)
     kern = np.exp(-(x / sig) ** 2 / 2)
     kern_norm = kern / sum(kern)
-    conv_spks = np.convolve(spks_t, kern, mode='same')
+    conv_spks = np.convolve(spks_t, kern_norm, mode='same')
     t = np.linspace(0, out_len_s, len(spks_t))
     return t, conv_spks
 
