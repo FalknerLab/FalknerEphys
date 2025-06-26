@@ -12,6 +12,7 @@ setup(
     author_email="falknermice@gmail.com",
     packages=find_namespace_packages(),
     include_package_data=True,
+    entry_points={"console_scripts": ["falknerephys=falknerephys.cli:main",]},
     python_requires=">=3.8",
     install_requires=reqs,
     license_files=("LICENCE",),
