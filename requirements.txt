@@ -7,3 +7,8 @@ PyYAML
 h5py
 PyQt5
 kilosort[gui]
+umap-learn
+UnitMatchPy
+tifffile
+brainreg[napari]
+brainrender
