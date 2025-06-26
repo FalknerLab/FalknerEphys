@@ -1,0 +1,4 @@
+Falkner Lab ephys data processing library v1.0
+Github: https://github.com/FalknerLab/FalknerEphys.git
+
+Copyright (c) 2025, FalknerLab
