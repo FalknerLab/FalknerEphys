@@ -85,7 +85,7 @@ class BasicRun:
 
     Attributes
     ----------
-    data : dict
+    data : Any
         Dataset recorded in this run.
     info_dict : dict
         Metadata associated with the run.
@@ -157,7 +157,7 @@ class ComputeRun(BasicRun):
     __init__(run_obj, func, *args, with_info=False)
         Initializes a ComputeRun instance.
     """
-    def __init__(self, run_obj, func, *args, with_info=False):
+    def __init__(self, run_obj, func, *args, with_info=False, **kwargs):
         """
         Initializes a ComputeRun instance.
 
@@ -171,9 +171,9 @@ class ComputeRun(BasicRun):
             Whether to pass info_dict to the function (default is False).
         """
         if with_info:
-            new_data = func(run_obj.data, run_obj.info, *args)
+            new_data = func(run_obj.data, run_obj.info, *args, **kwargs)
         else:
-            new_data = func(run_obj.data, *args)
+            new_data = func(run_obj.data, *args, **kwargs)
         super().__init__(new_data, run_obj.info)
 
 
@@ -211,7 +211,7 @@ class BasicExp:
         """
         self.runs = runs
 
-    def compute_across_runs(self, func, *args, arg_per_run=False, pass_info=False):
+    def compute_across_runs(self, func, *args, arg_per_run=False, pass_info=False, **kwargs):
         """
         Computes a function across all runs.
 
@@ -230,10 +230,10 @@ class BasicExp:
         run_list = []
         if arg_per_run:
             for r, a in zip(self.runs, args[0]):
-                run_list.append(ComputeRun(r, func, a, with_info=pass_info))
+                run_list.append(ComputeRun(r, func, a, with_info=pass_info, **kwargs))
         else:
             for r in self.runs:
-                run_list.append(ComputeRun(r, func, *args, with_info=pass_info))
+                run_list.append(ComputeRun(r, func, *args, with_info=pass_info, **kwargs))
         return BasicExp(run_list)
 
     def compute_across_groups(self, key_name, func, *args, arg_per_group=False):
