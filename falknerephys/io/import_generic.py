@@ -2,7 +2,7 @@ import numpy as np
 import os
 
 
-def load_phy(phy_path, offset_s=0, ephys_hz=25000):
+def load_phy(phy_path, offset_s=0, ephys_hz=30000, return_table=False):
     """
 
     Parameters
@@ -21,9 +21,10 @@ def load_phy(phy_path, offset_s=0, ephys_hz=25000):
     """
 
     #Load spike data from Phy folder
-    spks = np.load(phy_path + '/spike_times.npy')
-    spk_ids = np.load(phy_path + '/spike_clusters.npy')
-    good_units = np.loadtxt(phy_path + '/cluster_group.tsv', delimiter='\t', skiprows=1, dtype=str)
+    spks = np.load(os.path.join(phy_path, 'spike_times.npy'))
+    spk_ids = np.load(os.path.join(phy_path,  'spike_clusters.npy'))
+    good_units = np.loadtxt(os.path.join(phy_path, 'cluster_group.tsv'), delimiter='\t', skiprows=1, dtype=str)
+    clus_info = np.loadtxt(os.path.join(phy_path, 'cluster_info.tsv'), delimiter='\t', skiprows=1, dtype=str)
 
     #Only keep the ones labeled good from the tsv
     keep_clus = []
@@ -40,4 +41,14 @@ def load_phy(phy_path, offset_s=0, ephys_hz=25000):
         rel_spk_ts = g_spks.squeeze().astype(int)
         # ignore spikes before offset and convert to seconds
         ephys_data[str(c)] = (rel_spk_ts[rel_spk_ts > 0] / ephys_hz) - offset_s
-    return ephys_data
+    good_info = None
+    if np.all(clus_info[keep_clus, 0].astype(int) == keep_clus):
+        good_info = clus_info[keep_clus, :]
+
+    if return_table:
+        return ephys_data, good_info
+    else:
+        depths = good_info[:, 6].astype(float)
+        shanks = good_info[:, 10].astype(float).astype(int)
+        amps = good_info[:, 1].astype(float)
+        return ephys_data, amps, depths, shanks
