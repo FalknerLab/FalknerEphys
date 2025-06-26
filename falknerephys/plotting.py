@@ -43,10 +43,6 @@ def fr_per_xy(ax, spk_s, x, y, num_bins=30, xy_range=None, xy_hz=40, fr_min=0, f
     norm_fr = spks_xy / (total_xy/40)
     im = ax.imshow(norm_fr.T, extent=(xy_range[0, 0], xy_range[0, 1], xy_range[1, 0], xy_range[1, 1]),
               origin='lower', aspect='auto', interpolation='none', vmin=fr_min, vmax=fr_max)
-    # p = ax.pcolor(norm_fr.T, vmin=fr_min, vmax=fr_max)
-    # for pos in ['right', 'top', 'bottom', 'left']:
-    #     ax.spines[pos].set_visible(False)
-    # ax.tick_params(left=False, right=False, labelleft=False, labelbottom=False, bottom=False)
     return im
 
 
