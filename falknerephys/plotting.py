@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from debugpy.common.log import warning
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import pdist
 
@@ -12,10 +13,10 @@ def jitter_plot(spk_s, ax=None):
     ax.set_yticks([])
 
 
-def fr_heatmap(unit_fr, ax=None, unit_ids=None, hz=None, x_tick_s=10, fr_min=0, fr_max=25):
+def fr_heatmap(unit_fr, ax=None, unit_ids=None, hz=None, x_tick_s=10, fr_min=0, fr_max=25, **kwargs):
     if ax is None:
         ax = plt.gca()
-    ax.imshow(unit_fr.T, aspect='auto', interpolation='none', vmin=fr_min, vmax=fr_max)
+    im = ax.imshow(unit_fr.T, aspect='auto', interpolation='none', vmin=fr_min, vmax=fr_max, **kwargs)
     num_samps, num_us = np.shape(unit_fr)
     if hz is not None:
         x_tick = np.round(np.arange(0, num_samps, x_tick_s*hz))
@@ -27,6 +28,7 @@ def fr_heatmap(unit_fr, ax=None, unit_ids=None, hz=None, x_tick_s=10, fr_min=0, 
         ax.set_yticklabels(unit_ids)
     ax.set_ylabel('Unit ID')
     ax.set_xlabel('Time (s)')
+    return ax, im
 
 
 def fr_per_xy(ax, spk_s, x, y, num_bins=30, xy_range=None, xy_hz=40, fr_min=0, fr_max=25):
@@ -92,6 +94,7 @@ def plot_units(us, num_plot_per_fig=10):
             axs[c].plot(u)
             c += 1
 
+
 def spikes_vs_speed(spikes, vel):
     spike_height = 1.1*max(vel)
     max_ind = len(vel)
@@ -120,3 +123,47 @@ def set_labels(title, xlabel, ylabel, ax=None):
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
+
+
+def density_3d(data_3d, bin_n=15, thresh=0, ax=None):
+
+    if data_3d.ndim == 3:
+        hist_3d = data_3d
+        x_edges = np.linspace(0, data_3d.shape[0], data_3d.shape[0])
+        y_edges = np.linspace(0, data_3d.shape[1], data_3d.shape[1])
+        z_edges = np.linspace(0, data_3d.shape[2], data_3d.shape[2])
+        bin_x, bin_y, bin_z = data_3d.shape
+    elif data_3d.ndim == 2:
+        hist_3d, all_edges = np.histogramdd(data_3d, bins=bin_n, density=True)
+        bin_x, bin_y, bin_z = bin_n, bin_n, bin_n
+        x_edges, y_edges, z_edges = all_edges[:]
+    else:
+        warning(f'Wrong number of dimensions for desnity plot. Got {data_3d.ndim}, need 2 or 3')
+        return None
+
+    filled = np.argwhere(hist_3d)
+
+    c_map = np.zeros(len(filled))
+    for i, p in enumerate(filled):
+        c_map[i] = hist_3d[p[0], p[1], p[2]]
+
+    high_dens = c_map > thresh
+
+    filled = filled.astype(np.float32)
+
+    filled = filled[high_dens, :]
+    c_map = c_map[high_dens]
+
+    half_x = (x_edges[1] - x_edges[0]) / 2
+    half_y = (y_edges[1] - y_edges[0]) / 2
+    half_z = (z_edges[1] - z_edges[0]) / 2
+    filled[:, 0] = filled[:, 0] * (x_edges[-1] - x_edges[0]) / bin_x + x_edges[0] + half_x
+    filled[:, 1] = filled[:, 1] * (y_edges[-1] - y_edges[0]) / bin_y + y_edges[0] + half_y
+    filled[:, 2] = filled[:, 2] * (z_edges[-1] - z_edges[0]) / bin_z + z_edges[0] + half_z
+
+    if ax is not None:
+        ax.scatter(filled[:, 0], filled[:, 1], filled[:, 2], c=c_map, marker='s', s=3, alpha=0.005)
+
+    return filled, c_map
+
+
