@@ -38,8 +38,9 @@ def print_info():
     -------
     None
     """
-    v_file = open(os.path.abspath('resources/version.txt'), 'r')
-    print(v_file.read())
+    # v_file = open(os.path.abspath('resources/version.txt'), 'r')
+    # print(v_file.read())
+    print(os.listdir())
 
 
 if __name__ == '__main__':
