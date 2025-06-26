@@ -2,7 +2,7 @@ from kilosort import run_kilosort
 from kilosort.io import load_probe, save_to_phy
 
 
-def run_ks(imec_data_path, npx_probe='3A', probe_name=None, out_dir=None, bad_channels=None, n_chans=None,
+def run_ks(imec_data_path, npx_probe='NP2', probe_name=None, out_dir=None, bad_channels=None, n_chans=None,
            batch_size=60000, num_blocks=5):
 
     auto_chan_n = None
@@ -33,9 +33,5 @@ def run_ks(imec_data_path, npx_probe='3A', probe_name=None, out_dir=None, bad_ch
                           do_CAR=True, save_extra_vars=True, save_preprocessed_copy=False, bad_channels=bad_channels,
                           verbose_console=True)
     ops, st, clu, tF, Wall, similat_templates, is_ref, est_contam_rate, kept_spikes = ks_out[:]
-    save_to_phy(st, clu, tF, Wall, probe, ops, 0, results_dir=out_dir)
-
-
-if __name__ == '__main__':
-    data_path = 'D:\\ephys_data\\DAE011\\Dave_Surgery_post_g0_imec0\\Dave_Surgery_post_g0_t0.imec0.ap.bin'
-    run_ks(data_path)
+    phy_res = save_to_phy(st, clu, tF, Wall, probe, ops, 0, results_dir=out_dir)
+    return phy_res
