@@ -1,5 +1,7 @@
 import os
 
+import numpy as np
+
 
 def find_file_recur(root_fold, target_suf):
     """
@@ -52,3 +54,24 @@ def find_files(root_dir: str, targets=None):
         if found_file is not None:
             out_paths[t] = found_file
     return out_paths
+
+
+def compute_over_2d_bins(x_data, y_data, data, func, bins=20, range=None):
+    _, xedges, yedges = np.histogram2d(x_data, y_data, bins=bins, range=range)
+    out_hist = np.zeros((len(xedges) - 1, len(yedges) - 1))
+    for i, xe in enumerate(xedges[:-1]):
+        in_x = np.logical_and(x_data > xe, x_data < xedges[i + 1])
+        for j, ye in enumerate(yedges[:-1]):
+            in_y = np.logical_and(y_data > ye, y_data < yedges[j + 1])
+            in_bin = np.logical_and(in_x, in_y)
+            out_hist[i, j] = func(data[in_bin])
+    return out_hist, xedges, yedges
+
+
+def compute_over_1d_bins(x_data, data, func, bins=20, range=None):
+    _, xedges = np.histogram(x_data, bins=bins, range=range)
+    out_hist = np.zeros(len(xedges) - 1)
+    for i, xe in enumerate(xedges[:-1]):
+        in_x = np.logical_and(x_data > xe, x_data < xedges[i + 1])
+        out_hist[i] = func(data[in_x])
+    return out_hist, xedges
