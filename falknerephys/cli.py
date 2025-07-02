@@ -1,6 +1,8 @@
 import os
 import argparse
 
+from falknerephys.io.register import register_probes
+
 
 def main():
     """
@@ -15,7 +17,11 @@ def main():
     parser = argparse.ArgumentParser(prog='FalknerEphys',
                                      description='Falkner Lab codebase to process ephys data',
                                      epilog='See documentation at github.com/FalknerLab/FalknerEphys')
-    parser.add_argument(flags[0], help='Run brainreg and register probe to Allen CCF')
+    parser.add_argument(flags[0],
+                        nargs=2,
+                        default=defaults[0],
+                        metavar=('tiffpath', 'probepath'),
+                        help='Run brainreg and register probe to Allen CCF')
 
     args = vars(parser.parse_args())
     num_args = 0
@@ -27,7 +33,7 @@ def main():
         print_info()
 
     if args['brainreg'] is not None:
-        print(args['brainreg'])
+        register_probes(args['brainreg'][0], args['brainreg'][1])
 
 
 def print_info():
@@ -38,9 +44,8 @@ def print_info():
     -------
     None
     """
-    # v_file = open(os.path.abspath('resources/version.txt'), 'r')
-    # print(v_file.read())
-    print(os.listdir())
+    v_file = open(os.path.abspath('falknerephys/resources/version.txt'), 'r')
+    print(v_file.read())
 
 
 if __name__ == '__main__':
