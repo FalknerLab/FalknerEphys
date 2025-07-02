@@ -5,9 +5,12 @@ import re
 
 import numpy as np
 import tifffile as tiff
+from scipy.ndimage import binary_dilation
 from sklearn.cluster import AgglomerativeClustering
 from brainrender import Scene
-from brainrender.actors import Line, Points
+from brainrender.actors import Line, Points, Volume, Point
+import matplotlib
+from allensdk.core.mouse_connectivity_cache import MouseConnectivityCache
 
 from falknerephys.plotting import density_3d
 
@@ -37,75 +40,164 @@ def make_tiff_stack(tiff_prefix, out_fold, data_folder, chans=None):
 
 def register_brain(tiff_stack, out_dir, vox_dims=None, orientation='sal', atlas='auto'):
     if vox_dims is None:
-        vox_dims = [5.91, 5.91, 10]
+        vox_dims = [10, 5.91, 5.91]
     if atlas == 'auto':
         atlas = 'allen_mouse_25um'
-    br_command = f'brainreg {tiff_stack} {out_dir} -v {vox_dims[0]} {vox_dims[1]} {vox_dims[2]} --orientation {orientation} --atlas {atlas}'
-    print(br_command)
-    subprocess.run(br_command)
+    reg_tiff = os.path.join(out_dir, 'downsampled_standard.tiff')
+    if not os.path.isfile(reg_tiff):
+        br_command = f'brainreg {tiff_stack} {out_dir} -v {vox_dims[0]} {vox_dims[1]} {vox_dims[2]} --orientation {orientation} --atlas {atlas}'
+        subprocess.run(br_command)
+    else:
+        print('Registered data found. Skipping Brainreg...')
+    return reg_tiff
 
 
-def segment_tracks(atlas_reg_tiff, sig_thresh=350, poly_deg=3, find_roi=True, td_thresh=25, roi_pad=0, vox_sz=25, save_path=None):
+def segment_tracks(atlas_reg_tiff, shanks_thresh=350, poly_deg=4, shank_ord='PostAnt',
+                   td_thresh=25, roi_pad=(10, 5), vox_sz=25, save_path=None, npx_chan_file=None):
+    if type(roi_pad) == int:
+        roi_pad = (roi_pad, roi_pad)
 
     tiff_vol = tiff.imread(atlas_reg_tiff)
+    thresh_tiff = tiff_vol > shanks_thresh
+    vol = density_3d(tiff_vol, thresh=shanks_thresh)[0]
 
-    vol = density_3d(tiff_vol, thresh=sig_thresh)[0]
+    top_down = np.sum(tiff_vol > shanks_thresh, axis=1)
+    shank_mask = top_down > td_thresh
+    x_min = np.min(np.where(np.sum(shank_mask, axis=1))) - roi_pad[0]
+    x_max = np.max(np.where(np.sum(shank_mask, axis=1))) + roi_pad[0]
+    z_min = np.min(np.where(np.sum(shank_mask, axis=0))) - roi_pad[1]
+    z_max = np.max(np.where(np.sum(shank_mask, axis=0))) + roi_pad[1]
+    x_inds = np.logical_and(vol[:, 0] > x_min, vol[:, 0] < x_max)
+    z_inds = np.logical_and(vol[:, 2] > z_min, vol[:, 2] < z_max)
+    keep_inds = np.logical_and(x_inds, z_inds)
+    vol = vol[keep_inds, :]
+    most_vent = np.max(vol, axis=0)[1]
 
-    if find_roi:
-        top_down = np.sum(tiff_vol > sig_thresh, axis=1)
-        shank_mask = top_down > td_thresh
-        x_min = np.min(np.where(np.sum(shank_mask, axis=0))) - roi_pad
-        x_max = np.max(np.where(np.sum(shank_mask, axis=0))) + roi_pad
-        y_min = np.min(np.where(np.sum(shank_mask, axis=1))) - roi_pad
-        y_max = np.max(np.where(np.sum(shank_mask, axis=1))) + roi_pad
-        x_inds = np.logical_and(vol[:, 2] > x_min, vol[:, 2] < x_max)
-        y_inds = np.logical_and(vol[:, 0] > y_min, vol[:, 0] < y_max)
-        keep_inds = np.logical_and(x_inds, y_inds)
-        vol = vol[keep_inds, :]
+    box_pts = np.array([[x_min, 0, z_min],
+                       [x_min, 0, z_max],
+                       [x_max, 0, z_min],
+                       [x_max, 0, z_max],
+                        [x_min, most_vent, z_min],
+                        [x_min, most_vent, z_max],
+                        [x_max, most_vent, z_min],
+                        [x_max, most_vent, z_max]])
 
     clus = AgglomerativeClustering(distance_threshold=2, n_clusters=None, linkage='single').fit_predict(vol)
     c_id, counts = np.unique(clus, return_counts=True)
     shank_clus = c_id[np.argsort(counts)[-4:]]
 
-    brain = Scene(atlas_name="allen_mouse_25um", title="Reconstructed Implant Locations")
 
-    cols = ['#44AA99', '#88CCEE', '#D0C590', '#CC6677']
     shank_tips = []
     shank_coefs = []
+    tip_xs = []
+    side_view = np.sum(thresh_tiff, axis=2) > 0
+    side_view = binary_dilation(side_view, iterations=2)
     for ci, c in enumerate(shank_clus):
-        x, y, z = vox_sz*vol[clus == c, 0], vox_sz*vol[clus == c, 1], vox_sz*vol[clus == c, 2]
-        t = np.linspace(np.max(y), np.min(y), 100) #fit line across DV
+        x, y, z = vol[clus == c, 0], vol[clus == c, 1], vol[clus == c, 2]
+        t = np.linspace(np.max(y)+20, np.min(y), 100) #fit line across DV
         x_poly = np.polyfit(y, x, poly_deg)
         z_poly = np.polyfit(y, z, poly_deg)
         fitx = np.polyval(x_poly, t)
-        fitz = np.polyval(z_poly, t)
-        shk_pts = Points(vox_sz*vol[clus == c, :], colors=cols[ci], alpha=0.2)
-        brain.add(shk_pts)
-        brain.add(Line(np.vstack((fitx, t, fitz)).T, color='k'))
-        shank_tips.append(np.max(y))
+        in_shank = side_view[fitx.astype(int), t.astype(int)]
+        find_tip = np.where(in_shank)[0][0]
+        shank_tips.append(t[find_tip])
         shank_coefs.append(np.vstack((x_poly, z_poly)))
+        tip_xs.append(fitx[find_tip])
+
+    shank_tips = np.array(shank_tips)
+    shank_coefs = np.array(shank_coefs)
+    shank_o = np.argsort(tip_xs).astype(int)
+    if shank_ord == 'PostAnt':
+        shank_o = shank_o[::-1]
+
+    shank_tips = shank_tips[shank_o]
+    shank_coefs = shank_coefs[shank_o]
+
+    chan_xyz = np.array([])
+    if npx_chan_file is not None:
+        chan_data = json.load(open(npx_chan_file))
+        chan_num = np.array(chan_data['chanMap'])
+        shank_ids = np.array(chan_data['kcoords']).astype(int)
+        depths = np.array(chan_data['yc'])
+        chan_xyz = []
+        for s in range(4):
+            chan_depths = vox_sz*shank_tips[s] - depths[shank_ids == s]
+            chan_xs = vox_sz*np.polyval(shank_coefs[s, 0, :], chan_depths/vox_sz)
+            chan_zs = vox_sz*np.polyval(shank_coefs[s, 1, :], chan_depths/vox_sz)
+            chan_xyz.append(np.vstack((chan_num[shank_ids == s], chan_xs, chan_depths, chan_zs)).T)
+        chan_xyz = np.vstack(chan_xyz)
 
     if save_path is not None:
-        np.savez(os.path.join(save_path, 'shank_locations.npz'), shank_tips, shank_coefs)
+        save_path = os.path.join(save_path, 'shank_locations.npz')
+        np.savez(save_path, tip_dvs=shank_tips, shank_coefs=shank_coefs, shank_volume=box_pts, sig_thresh=shanks_thresh, tiff_path=atlas_reg_tiff, vox_size=vox_sz, chan_ccf=chan_xyz)
 
-    brain.render()
+    return save_path
 
 
-def map_channels_brain(npx_chan_file, shank_data):
-    shank_tips = np.load(shank_data)['arr_0']
-    shank_coefs = np.load(shank_data)['arr_1']
-    chan_data = json.load(open(npx_chan_file))
-    shank_ids = np.array(chan_data['kcoords']).astype(int)
-    depths = np.array(chan_data['yc'])
-    brain = Scene(atlas_name="allen_mouse_25um", title="Reconstructed Channel Locations")
-    for s in range(4):
-        chan_depths =  shank_tips[s] - depths[shank_ids == s]
-        chan_xs = np.polyval(shank_coefs[s, 0, :], chan_depths)
-        chan_zs = np.polyval(shank_coefs[s, 1, :], chan_depths)
-        brain.add(Points(np.vstack((chan_xs, chan_depths, chan_zs)).T))
+def show_shank_tracks(shank_data_file, return_brain=False, brain=None):
+    if brain is None:
+        brain = Scene(atlas_name="allen_mouse_25um", title="Reconstructed Implant Locations")
 
-    regions = ['LSc', 'LSr', 'LSv']
-    for r in regions:
-        brain.add_brain_region(r, alpha=0.2)
+    file_dict = np.load(shank_data_file)
+    tiff_vol = tiff.imread(str(file_dict['tiff_path']))
+    vox_sz = file_dict['vox_size']
 
-    brain.render()
+    brain.add(Points(vox_sz*file_dict['shank_volume'], colors='k'))
+    cols = ['#44AA99', '#88CCEE', '#D0C590', '#CC6677']
+
+    for dv, poly_cs, col in zip(file_dict['tip_dvs'], file_dict['shank_coefs'], cols):
+        t = np.linspace(dv, 0, 100)
+        fitx = np.polyval(poly_cs[0, :], t)
+        fitz = np.polyval(poly_cs[1, :], t)
+        tip = Point(vox_sz * np.array([fitx[0], t[0], fitz[0]]), color=col)
+        brain.add(tip)
+        brain.add(Line(vox_sz * np.vstack((fitx, t, fitz)).T, color=col))
+
+    raw_vol = Volume(tiff_vol, 25, min_value=file_dict['sig_thresh'], cmap='gray')
+    raw_vol.mesh.alpha(0.1)
+    brain.add(raw_vol)
+
+    if len(file_dict['chan_ccf']) > 0:
+        chan_pts = Points(file_dict['chan_ccf'][:, 1:], colors='k')
+        brain.add(chan_pts)
+        brain.add_label(chan_pts, 'Channel Locations', radius=0, size=128, xoffset=-500, yoffset=500)
+
+    if return_brain:
+        return brain
+    else:
+        brain.render()
+
+
+def register_probes(tiff_path, probe_json, out_path=None):
+    if out_path is None:
+        out_path = os.path.join(os.path.split(tiff_path)[0], 'brainreg')
+
+    registered_tiff = register_brain(tiff_path, out_path)
+    shank_data_file = segment_tracks(registered_tiff, save_path=out_path, npx_chan_file=probe_json)
+    show_shank_tracks(shank_data_file)
+
+
+def add_regions(*args, brain=None):
+    if brain is None:
+        brain = Scene()
+
+    cmap = matplotlib.colormaps['plasma']
+    colors = cmap(np.linspace(0, 1, len(args)))
+    cols_hex = [matplotlib.colors.to_hex(c) for c in colors]
+    for region, col in zip(args, cols_hex):
+        brain.add_brain_region(region, alpha=0.2, color=col)
+
+
+def add_allen_data(allen_exp_id, brain=None, vox_sz=25, min_density=0.25):
+    if brain is None:
+        brain = Scene()
+
+    # tell the cache class what resolution (in microns) of data you want to download
+    mcc = MouseConnectivityCache(resolution=vox_sz)
+
+    # download the projection density volume for one of the experiments
+    pd = mcc.get_projection_density(allen_exp_id)
+
+    brain.add(Volume(pd[0], voxel_size=vox_sz, min_value=min_density, cmap='viridis'))
+    return brain
+
