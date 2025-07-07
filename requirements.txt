@@ -16,3 +16,5 @@ morphapi
 pandas==2.3.0
 statsmodels>=0.14.4
 allensdk
+joblib
+bombcell
