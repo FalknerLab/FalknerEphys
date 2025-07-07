@@ -1,9 +1,11 @@
 import yaml
+
 import numpy as np
 from nptdms import TdmsFile
 import h5py
-from falknerephys.io.import_generic import load_phy
 import matplotlib.pyplot as plt
+
+from falknerephys.io.spikesort import load_phy
 
 
 def import_wm_data(phy_path, yaml_file=None, ephys_start=0, ephys_hz=25000):

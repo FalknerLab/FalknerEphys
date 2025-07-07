@@ -3,7 +3,7 @@ import os
 import numpy as np
 from kilosort.io import save_probe
 
-from falknerephys.io import ks4
+from falknerephys.io.spikesort import run_ks
 
 
 def read_onebox_bin(bin_file, num_chans=3, bytes_per_samp=2):
@@ -65,7 +65,7 @@ def process_imec_data(root_dir):
     ap_bin = find_imec_files(root_dir, 'ap')
     ob_bin = find_imec_files(root_dir, 'obx')
     time_vec, ob_data = read_onebox_bin(ob_bin)
-    phy_path = ks4.run_ks(ap_bin)
+    phy_path = run_ks(ap_bin)
     return phy_path, ob_data
 
 
