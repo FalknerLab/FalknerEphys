@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
 from debugpy.common.log import warning
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import pdist
@@ -163,3 +164,25 @@ def density_3d(data_3d, bin_n=15, thresh=0, ax=None):
     return filled, c_map
 
 
+def venn2(Ab, aB, AB, col0=(1, 0.3, 0.2, 0.5), col1=(0.2, 0.7, 0.5, 0.5), ax=None, labels=None):
+    if ax is None:
+        f, ax = plt.subplots(1, 1)
+
+    circ0_r = (Ab + AB) / 2
+    circ1_r = (aB + AB) / 2
+    circ1_x = circ0_r + circ1_r - AB
+
+    ax.add_patch(Circle((0, 0), circ0_r, facecolor=col0))
+    ax.add_patch(Circle((circ1_x, 0), circ1_r, facecolor=col1))
+
+    ax.set_xlim(-1.1*circ0_r, 1.1*(circ1_x+circ1_r))
+    ax.set_ylim(-1.1 * max(circ0_r, circ1_r), 1.1 * max(circ0_r, circ1_r))
+
+    if labels is not None:
+        l0 = ax.scatter(0, 10*max(circ0_r, circ1_r), 10, [col0])
+        l1 = ax.scatter(0, 10*max(circ0_r, circ1_r), 10, [col1])
+        l2 = ax.scatter(0, 10 * max(circ0_r, circ1_r), 10, [np.mean(np.vstack((col0, col1)), axis=0)])
+        labels_n = (f'{labels[0]} n={Ab + AB}', f'{labels[1]} n={aB + AB}', f'Overlap n={AB}')
+        plt.legend([l0, l1, l2], labels_n, loc='upper right')
+
+    ax.set_axis_off()
