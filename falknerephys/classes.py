@@ -358,7 +358,7 @@ class BasicExp:
             group_info.append(r.info)
         return group_data, group_info
 
-    def filter_by_group(self, key_name, key_val):
+    def filter_by_group(self, key_name, *args):
         """
         Filters runs by a specific key-value pair.
 
@@ -366,15 +366,19 @@ class BasicExp:
         ----------
         key_name : str
             Key name to search.
-        key_val : any
-            Key value to match.
+        *args : str
+            Key value(s) to match.
 
         Returns
         -------
         BasicExp
             New experiment with filtered runs.
         """
-        return BasicExp(self.get_runs_from_key_val(key_name, key_val)[0])
+        runs = []
+        for kv in args:
+            for r in self.get_runs_from_key_val(key_name, kv)[0]:
+                runs.append(r)
+        return BasicExp(runs)
 
     def get_run_data(self):
         """
