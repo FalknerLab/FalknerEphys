@@ -28,7 +28,7 @@ def run_ks(imec_data_paths=None, npx_probe=None, probe_name=None, bad_channels=N
             title="Select raw data file(s)",
             filetypes=(("Binary file", "*.bin"), ("All files", "*.*")))
 
-    auto_chan_n = None
+    auto_chan_n = 385
     match npx_probe:
         case '3A':
             probe = load_probe('./probe_chan_maps/neuropixPhase3A_kilosortChanMap.mat')
