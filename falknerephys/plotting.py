@@ -178,11 +178,24 @@ def venn2(Ab, aB, AB, col0=(1, 0.3, 0.2, 0.5), col1=(0.2, 0.7, 0.5, 0.5), ax=Non
     ax.set_xlim(-1.1*circ0_r, 1.1*(circ1_x+circ1_r))
     ax.set_ylim(-1.1 * max(circ0_r, circ1_r), 1.1 * max(circ0_r, circ1_r))
 
+    txt_x_A = 0 - circ0_r
+    txt_x_B = circ1_x + circ1_r
+    txt_x_AB = np.mean([circ1_x - circ1_r, circ0_r])
+    labels_n = [Ab + AB, aB + AB, AB]
+    ha_align = ['left', 'right', 'center']
+    y_pos = [0, 0, -np.min([circ0_r, circ1_r]) / 2]
+    for x, n, h, y in zip((txt_x_A, txt_x_B, txt_x_AB), labels_n, ha_align, y_pos):
+        ax.text(x, y, f'{n}', ha=h)
+
     if labels is not None:
-        l0 = ax.scatter(0, 10*max(circ0_r, circ1_r), 10, [col0])
-        l1 = ax.scatter(0, 10*max(circ0_r, circ1_r), 10, [col1])
-        l2 = ax.scatter(0, 10 * max(circ0_r, circ1_r), 10, [np.mean(np.vstack((col0, col1)), axis=0)])
-        labels_n = (f'{labels[0]} n={Ab + AB}', f'{labels[1]} n={aB + AB}', f'Overlap n={AB}')
-        plt.legend([l0, l1, l2], labels_n, loc='upper right')
+        ax.text(0-circ0_r, circ0_r, labels[0], ha='center', color=col0)
+        ax.text(circ1_x + circ1_r, circ0_r, labels[1], ha='center', color=col1)
+
+    # if labels is not None:
+    #     l0 = ax.scatter(0, 10*max(circ0_r, circ1_r), 10, [col0])
+    #     l1 = ax.scatter(0, 10*max(circ0_r, circ1_r), 10, [col1])
+    #     l2 = ax.scatter(0, 10 * max(circ0_r, circ1_r), 10, [np.mean(np.vstack((col0, col1)), axis=0)])
+    #     labels_n = (f'{labels[0]} n={Ab + AB}', f'{labels[1]} n={aB + AB}', f'Overlap n={AB}')
+    #     plt.legend([l0, l1, l2], labels_n, loc='upper right')
 
     ax.set_axis_off()
