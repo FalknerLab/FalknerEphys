@@ -1,7 +1,4 @@
 import sys
-from importlib import resources
-import h5py
-import numpy as np
 from nptdms import TdmsFile
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -12,7 +9,7 @@ import matplotlib
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 import matplotlib.pyplot as plt
 from falknerephys.io.utils import find_files
-from falknerephys.classes import MDcontroller
+from falknerephys.old.classes import MDcontroller
 
 
 def get_data_dialog(filter=None):
