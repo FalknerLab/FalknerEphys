@@ -2,6 +2,7 @@ import os
 import argparse
 
 from falknerephys.io.register import register_probes
+from falknerephys.io.spikesort import run_ks
 
 
 def main():
@@ -12,8 +13,8 @@ def main():
     -------
     None
     """
-    flags = ['-brainreg']
-    defaults = [None]
+    flags = ['-brainreg', '-kilosort']
+    defaults = [None, None]
     parser = argparse.ArgumentParser(prog='FalknerEphys',
                                      description='Falkner Lab codebase to process ephys data',
                                      epilog='See documentation at github.com/FalknerLab/FalknerEphys')
@@ -22,6 +23,11 @@ def main():
                         default=defaults[0],
                         metavar=('tiffpath', 'probepath'),
                         help='Run brainreg and register probe to Allen CCF')
+    parser.add_argument(flags[1],
+                        nargs='*',
+                        default=defaults[1],
+                        metavar=('binarypath', 'probepath'),
+                        help='Run kilosort on raw, imec data')
 
     args = vars(parser.parse_args())
     num_args = 0
@@ -34,6 +40,14 @@ def main():
 
     if args['brainreg'] is not None:
         register_probes(args['brainreg'][0], args['brainreg'][1])
+
+    if args['kilosort'] is not None:
+        if len(args['kilosort']) == 2:
+            run_ks(args['kilosort'][0], args['kilosort'][1])
+        elif len(args['kilosort']) == 0:
+            run_ks()
+        else:
+            print('Wrong number of arguments for -kilosort. Requires 0 or 2')
 
 
 def print_info():

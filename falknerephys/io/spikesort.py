@@ -5,6 +5,7 @@ import numpy as np
 from kilosort import run_kilosort
 from kilosort.io import load_probe, save_to_phy
 import matplotlib.pyplot as plt
+from tkinter import filedialog
 import UnitMatchPy.extract_raw_data as erd
 import UnitMatchPy.bayes_functions as bf
 import UnitMatchPy.utils as util
@@ -16,8 +17,16 @@ import bombcell as bc
 from falknerephys.plotting import venn2
 
 
-def run_ks(imec_data_path, npx_probe='NP2', probe_name=None, out_dir=None, bad_channels=None, n_chans=None,
+def run_ks(imec_data_paths=None, npx_probe=None, probe_name=None, bad_channels=None, n_chans=None,
            batch_size=60000, num_blocks=5):
+
+    if type(imec_data_paths) is str:
+        imec_data_paths = [imec_data_paths]
+
+    if imec_data_paths is None:
+        imec_data_paths = filedialog.askopenfilenames(
+            title="Select raw data file(s)",
+            filetypes=(("Binary file", "*.bin"), ("All files", "*.*")))
 
     auto_chan_n = None
     match npx_probe:
@@ -33,6 +42,11 @@ def run_ks(imec_data_path, npx_probe='NP2', probe_name=None, out_dir=None, bad_c
         case 'NP2':
             probe = load_probe('./probe_chan_maps/NP2_kilosortChanMap.mat')
             auto_chan_n = 385
+        case None:
+            probe_file = filedialog.askopenfilename(
+                title="Select channel map file",
+                filetypes=(("JSON", "*.json"), ("Matlab", "*.mat"), ("All files", "*.*")))
+            probe = load_probe(probe_file)
         case _:
             probe = load_probe(npx_probe)
 
@@ -43,15 +57,21 @@ def run_ks(imec_data_path, npx_probe='NP2', probe_name=None, out_dir=None, bad_c
                 'batch_size': batch_size,
                 'nblocks': num_blocks}
 
-    ks_out = run_kilosort(settings, probe=probe, probe_name=probe_name, filename=imec_data_path, results_dir=out_dir,
-                          do_CAR=True, save_extra_vars=True, save_preprocessed_copy=False, bad_channels=bad_channels,
-                          verbose_console=True)
-    ops, st, clu, tF, Wall, similat_templates, is_ref, est_contam_rate, kept_spikes = ks_out[:]
-    phy_res = save_to_phy(st, clu, tF, Wall, probe, ops, 0, results_dir=out_dir)
-    return phy_res
+    phy_results = []
+    for f in imec_data_paths:
+        f_split = os.path.split(f)
+        out_dir = os.path.join(f_split[0], f_split[1].split('.')[0] + '_kilosort')
+        print(f"Run ks on {f} --> save to {out_dir}")
+        ks_out = run_kilosort(settings, probe=probe, probe_name=probe_name, filename=f, results_dir=out_dir,
+                              do_CAR=True, save_extra_vars=True, save_preprocessed_copy=False, bad_channels=bad_channels,
+                              verbose_console=True)
+        ops, st, clu, tF, Wall, similat_templates, is_ref, est_contam_rate, kept_spikes = ks_out[:]
+        phy_res = save_to_phy(st, clu, tF, Wall, probe, ops, 0, results_dir=out_dir)
+        phy_results.append(phy_res)
+    return phy_results
 
 
-def load_phy(phy_path, offset_s=0, ephys_hz=30000, return_table=False):
+def load_phy(phy_path, offset_s=0, ephys_hz=30000, return_table=False, use_bombcell=False):
     """
 
     Parameters
@@ -75,11 +95,20 @@ def load_phy(phy_path, offset_s=0, ephys_hz=30000, return_table=False):
     good_units = np.loadtxt(os.path.join(phy_path, 'cluster_group.tsv'), delimiter='\t', skiprows=1, dtype=str)
     clus_info = np.loadtxt(os.path.join(phy_path, 'cluster_info.tsv'), delimiter='\t', skiprows=1, dtype=str)
 
-    #Only keep the ones labeled good from the tsv
     keep_clus = []
-    for i in range(np.shape(good_units)[0]):
-        if good_units[i, 1] == 'good':
-            keep_clus.append(good_units[i, 0].astype(int))
+    bc_path = os.path.join(phy_path, 'bombcell')
+    if use_bombcell and os.path.exists(bc_path):
+        param, quality_metrics, _ = bc.load_bc_results(bc_path)
+        unit_type, unit_type_string = bc.qm.get_quality_unit_type(param, quality_metrics)
+        _, phy_info = load_phy(phy_path, return_table=True)
+        keep_clus = np.where(unit_type_string == 'GOOD')[0]
+    else:
+        if use_bombcell:
+            print('Did not find the bombcell folder -> reverting to manual labels...')
+        #Only keep the ones labeled good from the tsv
+        for i in range(np.shape(good_units)[0]):
+            if good_units[i, 1] == 'good':
+                keep_clus.append(good_units[i, 0].astype(int))
 
     #Make dictionary from good units
     ephys_data = dict()
@@ -103,29 +132,30 @@ def load_phy(phy_path, offset_s=0, ephys_hz=30000, return_table=False):
         return ephys_data, amps, depths, shanks
 
 
-def run_bombcell(raw_path, meta_path, phy_path, ks_version=4):
+def run_bombcell(raw_path, meta_path, phy_path, ks_version=4, do_plots=True):
     bc_path = os.path.join(phy_path, 'bombcell')
     param = bc.get_default_parameters(phy_path,
                                       raw_file=raw_path,
                                       meta_file=meta_path,
                                       kilosort_version=ks_version)
+    param['plotGlobal'] = do_plots
     quality_metrics, param, unit_type, unit_type_string = bc.run_bombcell(phy_path, bc_path, param)
     return quality_metrics, param, unit_type, unit_type_string
 
 
-def compare_bombcell_manual(phy_path):
+def compare_bombcell_manual(phy_path, ax=None):
+    if ax is None:
+        ax = plt.gca()
     bc_path = os.path.join(phy_path, 'bombcell')
     param, quality_metrics, _ = bc.load_bc_results(bc_path)
-    # get quality unit types
     unit_type, unit_type_string = bc.qm.get_quality_unit_type(param, quality_metrics)
     _, phy_info = load_phy(phy_path, return_table=True)
     man_good = phy_info[:, 0].astype(int)
     bc_good = np.where(unit_type_string == 'GOOD')[0]
     man_bc = set(man_good).intersection(set(bc_good))
-    venn2(len(man_good) - len(man_bc), len(bc_good) - len(man_bc), len(man_bc), labels=('Manual', 'Bombcell'))
-    plt.show()
-    print(phy_info)
-
+    n_man, n_bc, n_both = len(man_good) - len(man_bc), len(bc_good) - len(man_bc), len(man_bc)
+    venn2(n_man, n_bc, n_both, labels=('Manual', 'Bombcell'), ax=ax)
+    return len(man_good), len(bc_good), n_both
 
 
 def prep_raw_unitmatch(folds, only_good = False):
@@ -322,7 +352,4 @@ def run_unitmatch(fold0, fold1):
 
 
 if __name__ == '__main__':
-    # run_bombcell(r"//169.254.21.113/data\DAE013_Day2_Territory_NoCues_g0\DAE013_Day2_Territory_NoCues_g0_imec0\DAE013_Day2_Territory_NoCues_g0_t0.imec0.ap.bin",
-    #              r"//169.254.21.113/data\DAE013_Day2_Territory_NoCues_g0\DAE013_Day2_Territory_NoCues_g0_imec0\DAE013_Day2_Territory_NoCues_g0_t0.imec0.ap.meta",
-    #              r'//169.254.21.113/data\DAE013_Day2_Territory_NoCues_g0\DAE013_Day2_Territory_NoCues_g0_imec0\kilosort4')
-    compare_bombcell_manual(r'//169.254.21.113/data\DAE013_Day2_Territory_NoCues_g0\DAE013_Day2_Territory_NoCues_g0_imec0\kilosort4')
+    run_ks()
