@@ -17,7 +17,7 @@ Analysis code for chronic silicon probe recordings performed in Falkner Lab
 ## Installing as a Package
 1. In Anaconda/Miniconda terminal activate and/or create an evironment where you want to install the package
 
-`conda env create --name MyEphysAnalysis pip`<br>
+`conda env create --name MyEphysAnalysis pip -y`<br>
 `conda activate MyEphysAnalysis`
 
 2. Install FalknerEphys package via pip
