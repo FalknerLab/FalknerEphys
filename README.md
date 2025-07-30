@@ -38,9 +38,15 @@ This will run BC curration on the given folder and save output there
 
 _Kilosort_
 
-`falknerephys -kilosort "your_path_to_imec_ap.bin" "your_path_to_channel_map.json"`
+**NOTE: If you want to use GPU, you must run the following in your environment**
 
-Runs kilosort4 on a given .bin and channel map using default settings
+`pip uninstall torch`
+
+`pip3 install torch --index-url https://download.pytorch.org/whl/cu118`
+
+Run kilosort4 on a given .bin and channel map using default settings
+
+`falknerephys -kilosort "your_path_to_imec_ap.bin" "your_path_to_channel_map.json"`
 
 -or-
 
