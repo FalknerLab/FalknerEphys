@@ -12,7 +12,8 @@ import UnitMatchPy.utils as util
 import UnitMatchPy.overlord as ov
 import UnitMatchPy.default_params as default_params
 from joblib import Parallel, delayed
-import bombcell as bc
+from bombcell import run_bombcell, load_bc_results, get_default_parameters
+from bombcell.quality_metrics import get_quality_unit_type
 
 from falknerephys.plotting import venn2
 
@@ -98,8 +99,8 @@ def load_phy(phy_path, offset_s=0, ephys_hz=30000, return_table=False, use_bombc
     keep_clus = []
     bc_path = os.path.join(phy_path, 'bombcell')
     if use_bombcell and os.path.exists(bc_path):
-        param, quality_metrics, _ = bc.load_bc_results(bc_path)
-        unit_type, unit_type_string = bc.qm.get_quality_unit_type(param, quality_metrics)
+        param, quality_metrics, _ = load_bc_results(bc_path)
+        unit_type, unit_type_string = get_quality_unit_type(param, quality_metrics)
         _, phy_info = load_phy(phy_path, return_table=True)
         keep_clus = np.where(unit_type_string == 'GOOD')[0]
     else:
@@ -134,12 +135,12 @@ def load_phy(phy_path, offset_s=0, ephys_hz=30000, return_table=False, use_bombc
 
 def run_bombcell(raw_path, meta_path, phy_path, ks_version=4, do_plots=True):
     bc_path = os.path.join(phy_path, 'bombcell')
-    param = bc.get_default_parameters(phy_path,
+    param = get_default_parameters(phy_path,
                                       raw_file=raw_path,
                                       meta_file=meta_path,
                                       kilosort_version=ks_version)
     param['plotGlobal'] = do_plots
-    quality_metrics, param, unit_type, unit_type_string = bc.run_bombcell(phy_path, bc_path, param)
+    quality_metrics, param, unit_type, unit_type_string = run_bombcell(phy_path, bc_path, param)
     return quality_metrics, param, unit_type, unit_type_string
 
 
@@ -147,8 +148,8 @@ def compare_bombcell_manual(phy_path, ax=None):
     if ax is None:
         ax = plt.gca()
     bc_path = os.path.join(phy_path, 'bombcell')
-    param, quality_metrics, _ = bc.load_bc_results(bc_path)
-    unit_type, unit_type_string = bc.qm.get_quality_unit_type(param, quality_metrics)
+    param, quality_metrics, _ = load_bc_results(bc_path)
+    unit_type, unit_type_string = get_quality_unit_type(param, quality_metrics)
     _, phy_info = load_phy(phy_path, return_table=True)
     man_good = phy_info[:, 0].astype(int)
     bc_good = np.where(unit_type_string == 'GOOD')[0]
