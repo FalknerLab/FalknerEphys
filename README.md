@@ -32,7 +32,7 @@ Analysis code for chronic silicon probe recordings performed in Falkner Lab
 
 ## _Bombcell_
 
-`falknerephys -bombcell "your_path_to_kilosort_folder"`
+`falknerephys -bombcell "your_path_to_imec_ap.bin" "your_path_to_imec_ap.META" "your_path_to_kilosort_folder"`
 
 This will run BC curration on the given folder and save output there
 
