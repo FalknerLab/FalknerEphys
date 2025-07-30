@@ -1,7 +1,6 @@
 import os
 import argparse
 
-from falknerephys.io.register import register_probes
 from falknerephys.io.spikesort import run_ks, run_bombcell
 
 
@@ -41,6 +40,7 @@ def main():
         print_info()
 
     if args['brainreg'] is not None:
+        from falknerephys.io.register import register_probes
         register_probes(args['brainreg'][0], args['brainreg'][1])
 
     if args['kilosort'] is not None:
