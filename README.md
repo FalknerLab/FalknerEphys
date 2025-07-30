@@ -3,7 +3,7 @@ Analysis code for chronic silicon probe recordings performed in Falkner Lab
 
 **Note**: requires login info for FalknerLab GitHub (Login to Github on your IDE)
 
-## Installing as Developer
+# Installing as Developer
 1. Open your IDE of choice and Git clone via version control or with terminal (below)
 
 `git clone https://github.com/FalknerLab/FalknerEphys.git`
@@ -14,7 +14,7 @@ Analysis code for chronic silicon probe recordings performed in Falkner Lab
 
 3. In IDE, set project interpreter to FalknerEphys
 
-## Installing as a Package
+# Installing as a Package
 1. In Anaconda/Miniconda terminal activate and/or create an evironment where you want to install the package
 
 `conda env create --name MyEphysAnalysis pip -y`<br>
@@ -30,13 +30,13 @@ Analysis code for chronic silicon probe recordings performed in Falkner Lab
 
 6. Running command line functions
 
-_Bombcell_
+## _Bombcell_
 
 `falknerephys -bombcell "your_path_to_kilosort_folder"`
 
 This will run BC curration on the given folder and save output there
 
-_Kilosort_
+## _Kilosort_
 
 **NOTE: If you want to use GPU, you must run the following in your environment**
 
@@ -54,7 +54,7 @@ Run kilosort4 on a given .bin and channel map using default settings
 
 Will trigger a dialog window to select one or many ap.bin files to batch process. Second dialog to specify channelmap.json file
 
-_Brainreg_
+## _Brainreg_
 
 `falknerephys -brainreg "your_path_to_histology.tiff" "your_path_to_channel_map.json"`
 
