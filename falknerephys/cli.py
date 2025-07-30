@@ -2,7 +2,7 @@ import os
 import argparse
 
 from falknerephys.io.register import register_probes
-from falknerephys.io.spikesort import run_ks
+from falknerephys.io.spikesort import run_ks, run_bombcell
 
 
 def main():
@@ -13,21 +13,23 @@ def main():
     -------
     None
     """
-    flags = ['-brainreg', '-kilosort']
-    defaults = [None, None]
+    flags = ['-brainreg', '-kilosort', '-bombcell']
+    defaults = [None, None, None]
+    mv_list = [('tiffpath', 'probepath'), ('binarypath', 'probepath'), ('binarypath', 'metapath', 'kilosortpath')]
+    star_args = ['-kilosort']
+    desc_list = ['Run Brainreg and register probe to Allen CCF',
+                 'Run Kilosort on raw data with default settings',
+                 'Run Bombcell on Kilosort output data, with default settings']
     parser = argparse.ArgumentParser(prog='FalknerEphys',
                                      description='Falkner Lab codebase to process ephys data',
                                      epilog='See documentation at github.com/FalknerLab/FalknerEphys')
-    parser.add_argument(flags[0],
-                        nargs=2,
-                        default=defaults[0],
-                        metavar=('tiffpath', 'probepath'),
-                        help='Run brainreg and register probe to Allen CCF')
-    parser.add_argument(flags[1],
-                        nargs='*',
-                        default=defaults[1],
-                        metavar=('binarypath', 'probepath'),
-                        help='Run kilosort on raw, imec data')
+
+    for f, d, mv, msg in zip(flags, defaults, mv_list, desc_list):
+        if f in star_args:
+            n_args = '*'
+        else:
+            n_args = len(mv)
+        parser.add_argument(f, nargs=n_args, default=d, metavar=mv, help=msg)
 
     args = vars(parser.parse_args())
     num_args = 0
@@ -48,6 +50,9 @@ def main():
             run_ks()
         else:
             print('Wrong number of arguments for -kilosort. Requires 0 or 2')
+
+    if args['bombcell'] is not None:
+        run_bombcell(args['bombcell'][0], args['bombcell'][1], args['bombcell'][2])
 
 
 def print_info():
