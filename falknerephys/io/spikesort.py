@@ -12,8 +12,6 @@ import UnitMatchPy.utils as util
 import UnitMatchPy.overlord as ov
 import UnitMatchPy.default_params as default_params
 from joblib import Parallel, delayed
-from bombcell import run_bombcell, load_bc_results, get_default_parameters
-from bombcell.quality_metrics import get_quality_unit_type
 
 from falknerephys.plotting import venn2
 
@@ -99,6 +97,9 @@ def load_phy(phy_path, offset_s=0, ephys_hz=30000, return_table=False, use_bombc
     keep_clus = []
     bc_path = os.path.join(phy_path, 'bombcell')
     if use_bombcell and os.path.exists(bc_path):
+        from bombcell import load_bc_results
+        from bombcell.quality_metrics import get_quality_unit_type
+
         param, quality_metrics, _ = load_bc_results(bc_path)
         unit_type, unit_type_string = get_quality_unit_type(param, quality_metrics)
         _, phy_info = load_phy(phy_path, return_table=True)
@@ -134,6 +135,7 @@ def load_phy(phy_path, offset_s=0, ephys_hz=30000, return_table=False, use_bombc
 
 
 def run_bombcell(raw_path, meta_path, phy_path, ks_version=4, do_plots=True):
+    from bombcell import run_bombcell, get_default_parameters
     bc_path = os.path.join(phy_path, 'bombcell')
     param = get_default_parameters(phy_path,
                                       raw_file=raw_path,
@@ -145,6 +147,8 @@ def run_bombcell(raw_path, meta_path, phy_path, ks_version=4, do_plots=True):
 
 
 def compare_bombcell_manual(phy_path, ax=None):
+    from bombcell import load_bc_results
+    from bombcell.quality_metrics import get_quality_unit_type
     if ax is None:
         ax = plt.gca()
     bc_path = os.path.join(phy_path, 'bombcell')
