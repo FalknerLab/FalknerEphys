@@ -63,7 +63,8 @@ def print_info():
     -------
     None
     """
-    v_file = open(os.path.abspath('falknerephys/resources/version.txt'), 'r')
+    this_path = os.path.dirname(os.path.abspath(__file__))
+    v_file = open(os.path.join(this_path, 'resources', 'version.txt'), 'r')
     print(v_file.read())
 
 
