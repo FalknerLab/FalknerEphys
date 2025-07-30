@@ -1,7 +1,7 @@
 import random
 
 import numpy as np
-import matplotlib
+
 import matplotlib.pyplot as plt
 import sklearn
 from matplotlib.colors import to_rgb
