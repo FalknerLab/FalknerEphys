@@ -1,7 +1,7 @@
 import os
 import argparse
 
-from falknerephys.io.spikesort import run_ks, run_bombcell
+from falknerephys.io.spikesort import run_ks4, run_bombcell
 
 
 def main():
@@ -45,9 +45,9 @@ def main():
 
     if args['kilosort'] is not None:
         if len(args['kilosort']) == 2:
-            run_ks(args['kilosort'][0], args['kilosort'][1])
+            run_ks4(args['kilosort'][0], args['kilosort'][1])
         elif len(args['kilosort']) == 0:
-            run_ks()
+            run_ks4()
         else:
             print('Wrong number of arguments for -kilosort. Requires 0 or 2')
 
