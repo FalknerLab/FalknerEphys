@@ -18,3 +18,4 @@ statsmodels>=0.14.4
 allensdk
 joblib
 bombcell
+tkfilebrowser

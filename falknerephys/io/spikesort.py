@@ -1,3 +1,4 @@
+import glob
 import os
 from pathlib import Path
 
@@ -5,7 +6,7 @@ import numpy as np
 from kilosort import run_kilosort
 from kilosort.io import load_probe, save_to_phy
 import matplotlib.pyplot as plt
-from tkinter import filedialog
+from tkfilebrowser import askopenfilename, askopendirnames
 import UnitMatchPy.extract_raw_data as erd
 import UnitMatchPy.bayes_functions as bf
 import UnitMatchPy.utils as util
@@ -16,16 +17,22 @@ from joblib import Parallel, delayed
 from falknerephys.plotting import venn2
 
 
-def run_ks(imec_data_paths=None, npx_probe=None, probe_name=None, bad_channels=None, n_chans=None,
+def run_ks4(imec_data_paths=None, npx_probe=None, probe_name=None, bad_channels=None, n_chans=None,
            batch_size=60000, num_blocks=5):
 
     if type(imec_data_paths) is str:
-        imec_data_paths = [imec_data_paths]
+        file_type = imec_data_paths.split('.')[-1]
+        if file_type == 'txt':
+            imec_data_paths = np.loadtxt(imec_data_paths, delimiter='\n')
+        else:
+            imec_data_paths = [imec_data_paths]
 
     if imec_data_paths is None:
-        imec_data_paths = filedialog.askopenfilenames(
-            title="Select raw data file(s)",
-            filetypes=(("Binary file", "*.bin"), ("All files", "*.*")))
+        # imec_data_paths = askopenfilenames(
+        #     title="Select raw data file(s)",
+        #     filetypes=(("Binary file", "*.bin"), ("All files", "*.*")))
+        fold_paths = askopendirnames(title='Select folders to process')
+        imec_data_paths = find_bins_no_ks(fold_paths)
 
     auto_chan_n = 385
     match npx_probe:
@@ -42,7 +49,7 @@ def run_ks(imec_data_paths=None, npx_probe=None, probe_name=None, bad_channels=N
             probe = load_probe('./probe_chan_maps/NP2_kilosortChanMap.mat')
             auto_chan_n = 385
         case None:
-            probe_file = filedialog.askopenfilename(
+            probe_file = askopenfilename(
                 title="Select channel map file",
                 filetypes=(("JSON", "*.json"), ("Matlab", "*.mat"), ("All files", "*.*")))
             probe = load_probe(probe_file)
@@ -59,7 +66,7 @@ def run_ks(imec_data_paths=None, npx_probe=None, probe_name=None, bad_channels=N
     phy_results = []
     for f in imec_data_paths:
         f_split = os.path.split(f)
-        out_dir = os.path.join(f_split[0], f_split[1].split('.')[0] + '_kilosort')
+        out_dir = os.path.join(f_split[0], f_split[1].split('.')[0] + '_kilosort4')
         print(f"Run ks on {f} --> save to {out_dir}")
         ks_out = run_kilosort(settings, probe=probe, probe_name=probe_name, filename=f, results_dir=out_dir,
                               do_CAR=True, save_extra_vars=True, save_preprocessed_copy=False, bad_channels=bad_channels,
@@ -68,6 +75,18 @@ def run_ks(imec_data_paths=None, npx_probe=None, probe_name=None, bad_channels=N
         phy_res = save_to_phy(st, clu, tF, Wall, probe, ops, 0, results_dir=out_dir)
         phy_results.append(phy_res)
     return phy_results
+
+
+def find_bins_no_ks(root_dirs):
+    bins_to_run = []
+    for f in root_dirs:
+        bin_paths = glob.glob(os.path.join(f, '**/*.ap.bin'), recursive=True)
+        for b in bin_paths:
+            ap_root = os.path.split(b)[0]
+            ks_path = glob.glob(os.path.join(ap_root, '*kilosort4'))
+            if len(ks_path) == 0:
+                bins_to_run.append(b)
+    return bins_to_run
 
 
 def load_phy(phy_path, offset_s=0, ephys_hz=30000, return_table=False, use_bombcell=False):
@@ -357,4 +376,4 @@ def run_unitmatch(fold0, fold1):
 
 
 if __name__ == '__main__':
-    run_ks()
+    run_ks4()
