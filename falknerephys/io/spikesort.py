@@ -63,7 +63,7 @@ def run_ks(imec_data_paths=None, npx_probe=None, probe_name=None, bad_channels=N
         print(f"Run ks on {f} --> save to {out_dir}")
         ks_out = run_kilosort(settings, probe=probe, probe_name=probe_name, filename=f, results_dir=out_dir,
                               do_CAR=True, save_extra_vars=True, save_preprocessed_copy=False, bad_channels=bad_channels,
-                              verbose_console=True)
+                              verbose_console=True, clear_cache=True)
         ops, st, clu, tF, Wall, similat_templates, is_ref, est_contam_rate, kept_spikes = ks_out[:]
         phy_res = save_to_phy(st, clu, tF, Wall, probe, ops, 0, results_dir=out_dir)
         phy_results.append(phy_res)
