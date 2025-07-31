@@ -26,15 +26,15 @@ Analysis code for chronic silicon probe recordings performed in Falkner Lab
 
 `import falknerephys as fe`
 
-6. Running command line functions
+# Running command line functions
 
-## _Bombcell_
+### _Bombcell_
 
 `falknerephys -bombcell "your_path_to_imec_ap.bin" "your_path_to_imec_ap.META" "your_path_to_kilosort_folder"`
 
 This will run BC curration on the given folder and save output there
 
-## _Kilosort_
+### _Kilosort_
 
 **NOTE: If you want to use GPU, you must run the following in your environment**
 
@@ -52,14 +52,14 @@ Run kilosort4 on a given .bin and channel map using default settings
 
 Will trigger a dialog window to select one or many ap.bin files to batch process. Second dialog to specify channelmap.json file
 
-## _Brainreg_
+### _Brainreg_
 
 `falknerephys -brainreg "your_path_to_histology.tiff" "your_path_to_channel_map.json"`
 
 Will register a given tiff stack (from PNI light sheet, CM-DiI channel) to Allen CCFv3 and apply the given channel map to automatically reconstruct shank trajectories and map NPX channel #s to 3D coordinates in Allen space.
 
 
-## Running Demos (WIP)
+# Running Demos (WIP)
 [Demo scripts](falknerephys/demos/) show processing steps for the different Falkner Lab data streams
 
 Examples include:<br>
@@ -68,5 +68,5 @@ Examples include:<br>
 `from falknerephys.demos import wm_import_demo`<br>
 `wm_import_demo()`
 
--Nothing else for now
+-Nothing else for now. In the future will add NPX data viz demos
 
