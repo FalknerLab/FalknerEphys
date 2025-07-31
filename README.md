@@ -1,8 +1,6 @@
 # FalknerEphys
 Analysis code for chronic silicon probe recordings performed in Falkner Lab
 
-**Note**: requires login info for FalknerLab GitHub (Login to Github on your IDE)
-
 # Installing as Developer
 1. Open your IDE of choice and Git clone via version control or with terminal (below)
 
