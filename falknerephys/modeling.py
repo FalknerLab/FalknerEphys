@@ -82,6 +82,8 @@ def run_reg_decoder(x_data, target_vars, model='glm', k=0, categorical=False):
     if type(model) == str:
         if model == 'svm':
             model_obj = svm.SVR(kernel='linear')
+            if categorical:
+                model_obj = svm.SVC(kernel='linear')
         elif model == 'glm':
             model_obj = TweedieRegressor(power=1, alpha=0.5, link='log')
         elif model == 'bayes':
@@ -101,7 +103,7 @@ def run_reg_decoder(x_data, target_vars, model='glm', k=0, categorical=False):
     if categorical:
         f1 = f1_score(test_output, test_pred, average='weighted')
     pred_all = model_obj.predict(x_data)
-    return model_obj, pred_all, mse, f1
+    return model_obj, pred_all, mse, f1, test_output, test_pred
 
 
 def run_pred_randshuf(u_data, cat_data, k=3, chk_sz=300, rand_state=42, test_ratio=0.2, model=None, num_shufs=20, categorical=False):
