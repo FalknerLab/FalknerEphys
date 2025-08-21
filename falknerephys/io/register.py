@@ -19,13 +19,17 @@ def make_tiff_stack(tiff_prefix, out_fold, data_folder, chans=None):
     if chans is None:
         chans = [0]
     all_ims = os.listdir(data_folder)
+    all_ims = sorted(all_ims)
     for c in chans:
         chan_ims = []
         for im in all_ims:
-            chan_num = re.findall("Filter\d\d\d\d", im)[0]
-            chan_num = int(chan_num.replace("Filter", ""))
-            if chan_num == c:
-                chan_ims.append(im)
+            chan_num = re.findall("Filter\d\d\d\d", im)
+            chan_name = re.findall("C00", im)
+            if len(chan_num) == 1 and len(chan_name) == 1:
+                chan_num = chan_num[0]
+                chan_num = int(chan_num.replace("Filter", ""))
+                if chan_num == c:
+                    chan_ims.append(im)
 
         im0 = tiff.imread(os.path.join(data_folder, chan_ims[0]), is_ome=False)
         out_tiff = np.zeros((len(chan_ims), 1, im0.shape[0], im0.shape[1]), dtype=im0.dtype)
@@ -52,7 +56,7 @@ def register_brain(tiff_stack, out_dir, vox_dims=None, orientation='sal', atlas=
     return reg_tiff
 
 
-def segment_tracks(atlas_reg_tiff, shanks_thresh=350, poly_deg=4, shank_ord='PostAnt',
+def segment_tracks(atlas_reg_tiff, shanks_thresh=500, poly_deg=4, shank_ord='PostAnt',
                    td_thresh=25, roi_pad=(10, 5), vox_sz=25, save_path=None, npx_chan_file=None):
     if type(roi_pad) == int:
         roi_pad = (roi_pad, roi_pad)
@@ -82,7 +86,10 @@ def segment_tracks(atlas_reg_tiff, shanks_thresh=350, poly_deg=4, shank_ord='Pos
                         [x_max, most_vent, z_min],
                         [x_max, most_vent, z_max]])
 
-    clus = AgglomerativeClustering(distance_threshold=2, n_clusters=None, linkage='single').fit_predict(vol)
+    def dist_metric(*args):
+        print(args)
+
+    clus = AgglomerativeClustering(distance_threshold=2, n_clusters=None, linkage='single', metric=dist_metric).fit_predict(vol)
     c_id, counts = np.unique(clus, return_counts=True)
     shank_clus = c_id[np.argsort(counts)[-4:]]
 
@@ -134,33 +141,41 @@ def segment_tracks(atlas_reg_tiff, shanks_thresh=350, poly_deg=4, shank_ord='Pos
     return save_path
 
 
-def show_shank_tracks(shank_data_file, return_brain=False, brain=None):
+def show_shank_tracks(shank_data_file, return_brain=False, brain=None, tiff_path=None, show_sig=True, show_lines=True,
+                      show_label=True, chan_col='k', show_bounds=True):
     if brain is None:
         brain = Scene(atlas_name="allen_mouse_25um", title="Reconstructed Implant Locations")
 
     file_dict = np.load(shank_data_file)
-    tiff_vol = tiff.imread(str(file_dict['tiff_path']))
     vox_sz = file_dict['vox_size']
 
-    brain.add(Points(vox_sz*file_dict['shank_volume'], colors='k'))
+    if show_bounds:
+        brain.add(Points(vox_sz*file_dict['shank_volume'], colors='k'))
+
     cols = ['#44AA99', '#88CCEE', '#D0C590', '#CC6677']
 
-    for dv, poly_cs, col in zip(file_dict['tip_dvs'], file_dict['shank_coefs'], cols):
-        t = np.linspace(dv, 0, 100)
-        fitx = np.polyval(poly_cs[0, :], t)
-        fitz = np.polyval(poly_cs[1, :], t)
-        tip = Point(vox_sz * np.array([fitx[0], t[0], fitz[0]]), color=col)
-        brain.add(tip)
-        brain.add(Line(vox_sz * np.vstack((fitx, t, fitz)).T, color=col))
+    if show_lines:
+        for dv, poly_cs, col in zip(file_dict['tip_dvs'], file_dict['shank_coefs'], cols):
+            t = np.linspace(dv, 0, 100)
+            fitx = np.polyval(poly_cs[0, :], t)
+            fitz = np.polyval(poly_cs[1, :], t)
+            tip = Point(vox_sz * np.array([fitx[0], t[0], fitz[0]]), color=col)
+            brain.add(tip)
+            brain.add(Line(vox_sz * np.vstack((fitx, t, fitz)).T, color=col))
 
-    raw_vol = Volume(tiff_vol, 25, min_value=file_dict['sig_thresh'], cmap='gray')
-    raw_vol.mesh.alpha(0.1)
-    brain.add(raw_vol)
+    if show_sig:
+        if tiff_path is None:
+            tiff_path = file_dict['tiff_path']
+        tiff_vol = tiff.imread(tiff_path)
+        raw_vol = Volume(tiff_vol, 25, min_value=file_dict['sig_thresh'], cmap='gray')
+        raw_vol.mesh.alpha(0.1)
+        brain.add(raw_vol)
 
     if len(file_dict['chan_ccf']) > 0:
-        chan_pts = Points(file_dict['chan_ccf'][:, 1:], colors='k')
+        chan_pts = Points(file_dict['chan_ccf'][:, 1:], colors=chan_col)
         brain.add(chan_pts)
-        brain.add_label(chan_pts, 'Channel Locations', radius=0, size=128, xoffset=-500, yoffset=500)
+        if show_label:
+            brain.add_label(chan_pts, 'Channel Locations', radius=0, size=128, xoffset=-500, yoffset=500)
 
     if return_brain:
         return brain
@@ -177,15 +192,19 @@ def register_probes(tiff_path, probe_json, out_path=None):
     show_shank_tracks(shank_data_file)
 
 
-def add_regions(*args, brain=None):
+def add_regions(*args, brain=None, colored=False, alpha=0.25):
     if brain is None:
         brain = Scene()
 
-    cmap = matplotlib.colormaps['plasma']
-    colors = cmap(np.linspace(0, 1, len(args)))
-    cols_hex = [matplotlib.colors.to_hex(c) for c in colors]
+    if colored:
+        cmap = matplotlib.colormaps['Accent']
+        colors = cmap(np.linspace(0, 1, len(args)))
+        cols_hex = [matplotlib.colors.to_hex(c) for c in colors]
+    else:
+        cols_hex = ['w' for i in range(len(args))]
+        alpha = 0.1
     for region, col in zip(args, cols_hex):
-        brain.add_brain_region(region, alpha=0.2, color=col)
+        brain.add_brain_region(region, alpha=alpha, color=col)
 
 
 def add_allen_data(allen_exp_id, brain=None, vox_sz=25, min_density=0.25):
@@ -200,4 +219,3 @@ def add_allen_data(allen_exp_id, brain=None, vox_sz=25, min_density=0.25):
 
     brain.add(Volume(pd[0], voxel_size=vox_sz, min_value=min_density, cmap='viridis'))
     return brain
-
