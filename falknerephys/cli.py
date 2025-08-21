@@ -15,7 +15,7 @@ def main():
     flags = ['-brainreg', '-kilosort', '-bombcell', '-notrace', '-minsig']
     defaults = [None, None, None, None, 250]
     mv_list = [('tiffpath', 'probepath'), ('binarypath', 'probepath'), ('binarypath', 'metapath', 'kilosortpath'), ('bool',), ('minimumsignal',)]
-    star_args = ['-kilosort']
+    star_args = ['-kilosort', '-brainreg']
     desc_list = ['Run Brainreg and register probe to Allen CCF',
                  'Run Kilosort on raw data with default settings',
                  'Run Bombcell on Kilosort output data, with default settings',
@@ -43,10 +43,13 @@ def main():
 
     if args['brainreg'] is not None:
         from falknerephys.io.register import register_probes
+        json_file = None
+        if len(args['brainreg']) == 2:
+            json_file = args['brainreg'][1]
         if args['notrace'] is not None:
-            register_probes(args['brainreg'][0], args['brainreg'][1], notrace=args['notrace'], min_sig=int(args['minsig'][0]))
+            register_probes(args['brainreg'][0], json_file, notrace=args['notrace'], min_sig=int(args['minsig'][0]))
         else:
-            register_probes(args['brainreg'][0], args['brainreg'][1], min_sig=int(args['minsig'][0]))
+            register_probes(args['brainreg'][0], json_file, min_sig=int(args['minsig'][0]))
 
     if args['kilosort'] is not None:
         if len(args['kilosort']) == 2:
