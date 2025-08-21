@@ -12,13 +12,14 @@ def main():
     -------
     None
     """
-    flags = ['-brainreg', '-kilosort', '-bombcell']
-    defaults = [None, None, None]
-    mv_list = [('tiffpath', 'probepath'), ('binarypath', 'probepath'), ('binarypath', 'metapath', 'kilosortpath')]
+    flags = ['-brainreg', '-kilosort', '-bombcell', '-notrace']
+    defaults = [None, None, None, None]
+    mv_list = [('tiffpath', 'probepath'), ('binarypath', 'probepath'), ('binarypath', 'metapath', 'kilosortpath'), ('bool',)]
     star_args = ['-kilosort']
     desc_list = ['Run Brainreg and register probe to Allen CCF',
                  'Run Kilosort on raw data with default settings',
-                 'Run Bombcell on Kilosort output data, with default settings']
+                 'Run Bombcell on Kilosort output data, with default settings',
+                 'Flag to visualize brainreg without shank segmentation']
     parser = argparse.ArgumentParser(prog='FalknerEphys',
                                      description='Falkner Lab codebase to process ephys data',
                                      epilog='See documentation at github.com/FalknerLab/FalknerEphys')
@@ -41,7 +42,10 @@ def main():
 
     if args['brainreg'] is not None:
         from falknerephys.io.register import register_probes
-        register_probes(args['brainreg'][0], args['brainreg'][1])
+        if args['notrace'] is not None:
+            register_probes(args['brainreg'][0], args['brainreg'][1], notrace=args['notrace'])
+        else:
+            register_probes(args['brainreg'][0], args['brainreg'][1])
 
     if args['kilosort'] is not None:
         if len(args['kilosort']) == 2:
