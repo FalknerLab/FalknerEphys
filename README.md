@@ -58,6 +58,11 @@ Will trigger a dialog window to select one or many ap.bin files to batch process
 
 Will register a given tiff stack (from PNI light sheet, CM-DiI channel) to Allen CCFv3 and apply the given channel map to automatically reconstruct shank trajectories and map NPX channel #s to 3D coordinates in Allen space.
 
+The clustering right now is not terribly robust, so you probably will want to just see the data before importing it into Napari. To do that, run:
+
+`falknerephys -brainreg "your_path_to_histology.tiff" -notrace True -minsig 350 `
+
+where -notrace True skips the shank clustering and -minsig is the minimum fluorescence value to render as voxels
 
 # Running Demos (WIP)
 [Demo scripts](falknerephys/demos/) show processing steps for the different Falkner Lab data streams
