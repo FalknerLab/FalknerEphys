@@ -44,9 +44,9 @@ def main():
     if args['brainreg'] is not None:
         from falknerephys.io.register import register_probes
         if args['notrace'] is not None:
-            register_probes(args['brainreg'][0], args['brainreg'][1], notrace=args['notrace'], min_sig=int(args['minsig']))
+            register_probes(args['brainreg'][0], args['brainreg'][1], notrace=args['notrace'], min_sig=int(args['minsig'][0]))
         else:
-            register_probes(args['brainreg'][0], args['brainreg'][1], min_sig=args['minsig'])
+            register_probes(args['brainreg'][0], args['brainreg'][1], min_sig=int(args['minsig'][0]))
 
     if args['kilosort'] is not None:
         if len(args['kilosort']) == 2:
