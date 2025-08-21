@@ -204,7 +204,7 @@ def show_signal(registered_tiff, return_brain=False, brain=None, vox_sz=25, min_
         brain.render()
 
 
-def register_probes(tiff_path, probe_json, out_path=None, notrace=False, min_sig=250):
+def register_probes(tiff_path, probe_json=None, out_path=None, notrace=False, min_sig=250):
     if out_path is None:
         out_path = os.path.join(os.path.split(tiff_path)[0], 'brainreg')
 
