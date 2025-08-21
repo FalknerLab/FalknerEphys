@@ -140,9 +140,9 @@ def load_phy(phy_path, offset_s=0, ephys_hz=30000, return_table=False, use_bombc
         rel_spk_ts = g_spks.squeeze().astype(int)
         # ignore spikes before offset and convert to seconds
         ephys_data[str(c)] = (rel_spk_ts[rel_spk_ts > 0] / ephys_hz) - offset_s
-    good_info = None
-    if np.all(clus_info[keep_clus, 0].astype(int) == keep_clus):
-        good_info = clus_info[keep_clus, :]
+
+    keep_info = np.isin(clus_info[:, 0].astype(int), keep_clus)
+    good_info = clus_info[keep_info, :]
 
     if return_table:
         return ephys_data, good_info
