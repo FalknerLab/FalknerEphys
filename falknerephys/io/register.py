@@ -189,7 +189,7 @@ def show_shank_tracks(shank_data_file, return_brain=False, brain=None, tiff_path
         brain.render()
 
 
-def show_signal(registered_tiff, return_brain=False, brain=None, vox_sz=25, min_sig=150):
+def show_signal(registered_tiff, return_brain=False, brain=None, vox_sz=25, min_sig=250):
     if brain is None:
         brain = Scene(atlas_name="allen_mouse_25um", title="Reconstructed Implant Locations")
 
@@ -204,15 +204,15 @@ def show_signal(registered_tiff, return_brain=False, brain=None, vox_sz=25, min_
         brain.render()
 
 
-def register_probes(tiff_path, probe_json, out_path=None, notrace=False):
+def register_probes(tiff_path, probe_json, out_path=None, notrace=False, min_sig=250):
     if out_path is None:
         out_path = os.path.join(os.path.split(tiff_path)[0], 'brainreg')
 
     registered_tiff = register_brain(tiff_path, out_path)
     if notrace:
-        show_signal(registered_tiff)
+        show_signal(registered_tiff, min_sig=min_sig)
     else:
-        shank_data_file = segment_tracks(registered_tiff, save_path=out_path, npx_chan_file=probe_json)
+        shank_data_file = segment_tracks(registered_tiff, save_path=out_path, npx_chan_file=probe_json, shanks_thresh=min_sig)
         show_shank_tracks(shank_data_file)
 
 
