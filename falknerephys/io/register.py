@@ -7,6 +7,7 @@ import numpy as np
 import tifffile as tiff
 from scipy.ndimage import binary_dilation
 from sklearn.cluster import AgglomerativeClustering
+from sklearn.metrics import pairwise_distances
 from brainrender import Scene
 from brainrender.actors import Line, Points, Volume, Point
 import matplotlib
@@ -56,7 +57,7 @@ def register_brain(tiff_stack, out_dir, vox_dims=None, orientation='sal', atlas=
     return reg_tiff
 
 
-def segment_tracks(atlas_reg_tiff, shanks_thresh=500, poly_deg=4, shank_ord='PostAnt',
+def segment_tracks(atlas_reg_tiff, shanks_thresh=250, poly_deg=4, shank_ord='PostAnt',
                    td_thresh=25, roi_pad=(10, 5), vox_sz=25, save_path=None, npx_chan_file=None):
     if type(roi_pad) == int:
         roi_pad = (roi_pad, roi_pad)
@@ -64,7 +65,6 @@ def segment_tracks(atlas_reg_tiff, shanks_thresh=500, poly_deg=4, shank_ord='Pos
     tiff_vol = tiff.imread(atlas_reg_tiff)
     thresh_tiff = tiff_vol > shanks_thresh
     vol = density_3d(tiff_vol, thresh=shanks_thresh)[0]
-
     top_down = np.sum(tiff_vol > shanks_thresh, axis=1)
     shank_mask = top_down > td_thresh
     x_min = np.min(np.where(np.sum(shank_mask, axis=1))) - roi_pad[0]
@@ -75,6 +75,9 @@ def segment_tracks(atlas_reg_tiff, shanks_thresh=500, poly_deg=4, shank_ord='Pos
     z_inds = np.logical_and(vol[:, 2] > z_min, vol[:, 2] < z_max)
     keep_inds = np.logical_and(x_inds, z_inds)
     vol = vol[keep_inds, :]
+    vol_inds = np.floor(vol).astype(int)
+    f_vals = tiff_vol[vol_inds[:, 0], vol_inds[ :, 1], vol_inds[:, 2]]
+    vol_f = np.hstack((vol, f_vals[:, None]))
     most_vent = np.max(vol, axis=0)[1]
 
     box_pts = np.array([[x_min, 0, z_min],
@@ -86,10 +89,13 @@ def segment_tracks(atlas_reg_tiff, shanks_thresh=500, poly_deg=4, shank_ord='Pos
                         [x_max, most_vent, z_min],
                         [x_max, most_vent, z_max]])
 
-    def dist_metric(*args):
-        print(args)
+    def dist_metric(xyzf0, xyzf1):
+        pt_dist = np.linalg.norm(xyzf0[:3] - xyzf1[:3])
+        f_scale = np.min(xyzf0[3], xyzf1[3])
+        print(xyzf0)
 
-    clus = AgglomerativeClustering(distance_threshold=2, n_clusters=None, linkage='single', metric=dist_metric).fit_predict(vol)
+    distance_matrix = pairwise_distances(vol_f, metric=dist_metric)
+    clus = AgglomerativeClustering(distance_threshold=2, n_clusters=None, linkage='single', metric=dist_metric).fit_predict(vol_f)
     c_id, counts = np.unique(clus, return_counts=True)
     shank_clus = c_id[np.argsort(counts)[-4:]]
 
@@ -183,13 +189,31 @@ def show_shank_tracks(shank_data_file, return_brain=False, brain=None, tiff_path
         brain.render()
 
 
-def register_probes(tiff_path, probe_json, out_path=None):
+def show_signal(registered_tiff, return_brain=False, brain=None, vox_sz=25, min_sig=150):
+    if brain is None:
+        brain = Scene(atlas_name="allen_mouse_25um", title="Reconstructed Implant Locations")
+
+    tiff_vol = tiff.imread(registered_tiff)
+    raw_vol = Volume(tiff_vol, vox_sz, min_value=min_sig, cmap='gray')
+    raw_vol.mesh.alpha(0.1)
+    brain.add(raw_vol)
+
+    if return_brain:
+        return brain
+    else:
+        brain.render()
+
+
+def register_probes(tiff_path, probe_json, out_path=None, notrace=False):
     if out_path is None:
         out_path = os.path.join(os.path.split(tiff_path)[0], 'brainreg')
 
     registered_tiff = register_brain(tiff_path, out_path)
-    shank_data_file = segment_tracks(registered_tiff, save_path=out_path, npx_chan_file=probe_json)
-    show_shank_tracks(shank_data_file)
+    if notrace:
+        show_signal(registered_tiff)
+    else:
+        shank_data_file = segment_tracks(registered_tiff, save_path=out_path, npx_chan_file=probe_json)
+        show_shank_tracks(shank_data_file)
 
 
 def add_regions(*args, brain=None, colored=False, alpha=0.25):
