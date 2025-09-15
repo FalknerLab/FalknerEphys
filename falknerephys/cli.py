@@ -1,7 +1,7 @@
 import os
 import argparse
 
-from falknerephys.io.spikesort import run_ks4, run_bombcell
+from falknerephys.io.spikesort import run_ks4, run_bombcell, run_unitmatch, prep_raw_unitmatch
 
 
 def main():
@@ -12,10 +12,10 @@ def main():
     -------
     None
     """
-    flags = ['-brainreg', '-kilosort', '-bombcell', '-notrace', '-minsig']
-    defaults = [None, None, None, None, 250]
-    mv_list = [('tiffpath', 'probepath'), ('binarypath', 'probepath'), ('binarypath', 'metapath', 'kilosortpath'), ('bool',), ('minimumsignal',)]
-    star_args = ['-kilosort', '-brainreg']
+    flags = ['-brainreg', '-kilosort', '-bombcell', '-notrace', '-minsig', '-unitmatch']
+    defaults = [None, None, None, None, 250, None]
+    mv_list = [('tiffpath', 'probepath'), ('binarypath', 'probepath'), ('binarypath', 'metapath', 'kilosortpath'), ('bool',), ('minsignal',), ('umpath0', 'umpath1')]
+    star_args = ['-kilosort', '-brainreg', '-unitmatch']
     desc_list = ['Run Brainreg and register probe to Allen CCF',
                  'Run Kilosort on raw data with default settings',
                  'Run Bombcell on Kilosort output data, with default settings',
@@ -61,6 +61,11 @@ def main():
 
     if args['bombcell'] is not None:
         run_bombcell(args['bombcell'][0], args['bombcell'][1], args['bombcell'][2])
+
+    if args['unitmatch'] is not None:
+        prep_raw_unitmatch(args['unitmatch'])
+        if len(args['unitmatch']) == 2:
+            run_unitmatch(args['unitmatch'][0], args['unitmatch'][1])
 
 
 def print_info():
