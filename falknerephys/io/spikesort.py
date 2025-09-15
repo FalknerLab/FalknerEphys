@@ -189,8 +189,10 @@ def prep_raw_unitmatch(folds, only_good = False):
     meta_paths = []
     for f in folds:
         fold_name = os.path.split(f)[-1]
-        bin_name = os.path.join(f, '_'.join(fold_name.split('_')[:-1]) + '_t0.imec0.ap.bin')
-        meta_name = os.path.join(f, '_'.join(fold_name.split('_')[:-1]) + '_t0.imec0.ap.meta')
+        # bin_name = os.path.join(f, '_'.join(fold_name.split('_')[:-1]) + '_t0.imec0.ap.bin')
+        # meta_name = os.path.join(f, '_'.join(fold_name.split('_')[:-1]) + '_t0.imec0.ap.meta')
+        bin_name = os.path.join(f, fold_name + '_g0_t0.imec0.ap.bin')
+        meta_name = os.path.join(f, fold_name + '_g0_t0.imec0.ap.meta')
         data_paths.append(bin_name)
         meta_paths.append(meta_name)
         KS_dirs.append(os.path.join(f, 'kilosort4'))
@@ -292,7 +294,7 @@ def prep_raw_unitmatch(folds, only_good = False):
             erd.save_avg_waveforms(avg_waveforms, KS_dirs[sid], good_units[sid])
 
 
-def run_unitmatch(fold0, fold1):
+def run_unitmatch(fold0, fold1, only_good=True, thresh=0.75):
     # Get default parameters, can add your own before or after!
     param = default_params.get_default_param()
 
@@ -308,7 +310,7 @@ def run_unitmatch(fold0, fold1):
     waveform, session_id, session_switch, within_session, good_units, param = util.load_good_waveforms(wave_paths,
                                                                                                        unit_label_paths,
                                                                                                        param,
-                                                                                                       good_units_only=True)
+                                                                                                       good_units_only=only_good)
 
     # param['peak_loc'] = #may need to set as a value if the peak location is NOT ~ half the spike width
 
@@ -345,10 +347,10 @@ def run_unitmatch(fold0, fold1):
     probability = bf.apply_naive_bayes(parameter_kernels, priors, predictors, param, cond)
 
     output_prob_matrix = probability[:, 1].reshape(param['n_units'], param['n_units'])
-    util.evaluate_output(output_prob_matrix, param, within_session, session_switch, match_threshold=0.75)
+    util.evaluate_output(output_prob_matrix, param, within_session, session_switch, match_threshold=thresh)
 
-    match_threshold = param['match_threshold']
-    # match_threshold = try different values here!
+    # match_threshold = param['match_threshold']
+    match_threshold = thresh
 
     output_threshold = np.zeros_like(output_prob_matrix)
     output_threshold[output_prob_matrix > match_threshold] = 1
@@ -371,7 +373,7 @@ def run_unitmatch(fold0, fold1):
     right_inds = between_matches[:, 1].astype(int)
     left_labs = good_unit_ids[left_inds]
     right_labs = good_unit_ids[right_inds]
-    plt.show()
+    # plt.show()
     return left_inds, right_inds-num_units_l, left_labs, right_labs, waveform[left_inds, :, :, 0], waveform[right_inds, :, :, 1]
 
 
