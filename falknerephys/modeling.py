@@ -19,6 +19,23 @@ from umap import UMAP
 from falknerephys.preprocess import gaus_fr, spikes_to_timeseries
 
 
+def uniform_sample(cat_data, max_samps=0, method='random'):
+    u_cats, c_cnts = np.unique(cat_data, return_counts=True)
+    if max_samps == 0:
+        max_samps = np.min(c_cnts)
+    cat_inds = []
+    for c in u_cats:
+        all_inds = np.where(cat_data == c)[0]
+        num_samps = min(len(all_inds), max_samps)
+        match method:
+            case 'first':
+                cat_inds.append(all_inds[:num_samps])
+            case 'random':
+                rand_inds = np.random.choice(all_inds, len(all_inds), replace=False)
+                cat_inds.append(rand_inds[:num_samps])
+    return cat_inds
+
+
 def run_rc_glm(behav_pred, unit_data, glm_model=TweedieRegressor(power=1, alpha=0.5, link='log')):
     nans = np.any(np.isnan(behav_pred), axis=1)
     behav_pred = behav_pred[~nans]
@@ -75,9 +92,15 @@ def make_design_matrix(behav_mat, pred_type=None, fs=30, time_width_ms=250):
     return design_mat
 
 
-def run_reg_decoder(x_data, target_vars, model='glm', k=0, categorical=False):
-    train_input, test_input, train_output, test_output = train_test_split(x_data, target_vars, test_size=0.2,
-                                                                          random_state=42)
+def run_reg_decoder(x_data, target_vars, model='glm', k=0, categorical=False, test_inds=None):
+    if test_inds is None:
+        train_input, test_input, train_output, test_output = train_test_split(x_data, target_vars, test_size=0.2,
+                                                                              random_state=42)
+    else:
+        test_input = x_data[test_inds]
+        test_output = target_vars[test_inds]
+        train_input = x_data[~test_inds]
+        train_output = target_vars[~test_inds]
     model_obj = None
     if type(model) == str:
         if model == 'svm':
