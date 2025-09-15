@@ -60,10 +60,10 @@ def gaus_fr(spks, fs, time_width_ms, out_len_s):
     return t, fr
 
 
-def spikes_to_timeseries(unit_dict, smooth_func=square_fr, ephys_hz=30000, out_hz=40, ts_len_s=60, time_win_ms=250, save_path=''):
+def spikes_to_timeseries(unit_dict, smooth_func=square_fr, ephys_hz=30000, out_hz=40, ts_len_s=60, time_win_ms=250, save_path='', overwrite=False):
     units = []
     t_vec = []
-    if os.path.isfile(save_path):
+    if os.path.isfile(save_path) and not overwrite:
         spike_dict = np.load(save_path)
         t_vec = spike_dict['t_vec']
         spk_data = spike_dict['spk_data']
