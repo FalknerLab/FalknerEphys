@@ -20,7 +20,8 @@ def main():
                  'Run Kilosort on raw data with default settings',
                  'Run Bombcell on Kilosort output data, with default settings',
                  'Flag to visualize brainreg without shank segmentation',
-                 'Minimum fluorescence value to render in brainrender']
+                 'Minimum fluorescence value to render in brainrender',
+                 'Run unitmatch on kilosort output folders']
     parser = argparse.ArgumentParser(prog='FalknerEphys',
                                      description='Falkner Lab codebase to process ephys data',
                                      epilog='See documentation at github.com/FalknerLab/FalknerEphys')
