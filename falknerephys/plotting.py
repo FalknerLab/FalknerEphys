@@ -199,3 +199,15 @@ def venn2(Ab, aB, AB, col0=(1, 0.3, 0.2, 0.5), col1=(0.2, 0.7, 0.5, 0.5), ax=Non
     #     plt.legend([l0, l1, l2], labels_n, loc='upper right')
 
     ax.set_axis_off()
+
+
+def ternary(vals, ax=None):
+    if ax is None:
+        f, ax = plt.subplots(1, 1)
+
+    vals = np.array(vals)
+    if vals.ndim == 1:
+        vals = vals[np.newaxis, :]
+
+    for v in vals:
+        print(vals)
