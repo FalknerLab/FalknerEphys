@@ -150,7 +150,8 @@ def load_phy(phy_path, offset_s=0, ephys_hz=30000, return_table=False, use_bombc
         depths = good_info[:, 6].astype(float)
         shanks = good_info[:, 10].astype(float).astype(int)
         amps = good_info[:, 1].astype(float)
-        return ephys_data, amps, depths, shanks
+        chans = good_info[:, 5].astype(float).astype(int)
+        return ephys_data, amps, depths, shanks, chans
 
 
 def run_bombcell(raw_path, meta_path, phy_path, ks_version=4, do_plots=True):
@@ -254,7 +255,10 @@ def prep_raw_unitmatch(folds, only_good = False):
     else:
         for sid in range(n_sessions):
             # Extracting ALL the Units
-            n_units = len(np.unique(spike_ids[sid]))
+            # n_units = len(np.unique(spike_ids[sid]))
+
+            n_units = np.max(spike_ids[sid])
+
             # Load metadata
             this_path = meta_paths[sid]
             meta_data = erd.read_meta(Path(this_path))
