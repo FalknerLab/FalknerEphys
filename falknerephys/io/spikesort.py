@@ -183,7 +183,7 @@ def compare_bombcell_manual(phy_path, ax=None):
     return len(man_good), len(bc_good), n_both
 
 
-def prep_raw_unitmatch(folds, only_good = False):
+def prep_raw_unitmatch(folds, only_good = True):
     # List of paths to a KS directory, can pass paths
     KS_dirs = []
     data_paths = []
