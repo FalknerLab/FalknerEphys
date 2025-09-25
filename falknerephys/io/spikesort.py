@@ -251,7 +251,7 @@ def prep_raw_unitmatch(folds, only_good = True):
 
             # Save in file named 'RawWaveforms' in the KS Directory
             print(good_units[sid])
-            erd.save_avg_waveforms(avg_waveforms, KS_dirs[sid], good_units[sid])
+            erd.save_avg_waveforms(avg_waveforms, KS_dirs[sid], good_units[sid], extract_good_units_only=True)
 
     else:
         for sid in range(n_sessions):
