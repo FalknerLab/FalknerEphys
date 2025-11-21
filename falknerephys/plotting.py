@@ -1,9 +1,23 @@
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 from debugpy.common.log import warning
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import pdist
+
+
+def fempl_style():
+    plt.rcParams['font.sans-serif'] = ['Arial']
+    plt.rcParams['font.family'] = 'sans-serif'
+    mpl.rcParams['font.weight'] = 'bold'
+    mpl.rcParams['axes.labelsize'] = 20
+    mpl.rcParams['axes.titlesize'] = 20
+    mpl.rcParams['xtick.labelsize'] = 16
+    mpl.rcParams['ytick.labelsize'] = 16
+    mpl.rcParams['axes.spines.right'] = False
+    mpl.rcParams['axes.spines.top'] = False
+    mpl.rcParams['grid.linestyle'] = ':'
 
 
 def jitter_plot(spk_s, ax=None):
@@ -211,3 +225,16 @@ def ternary(vals, ax=None):
 
     for v in vals:
         print(vals)
+
+
+def plot_waveforms(wf_mat, ax=None, c_pad=5):
+    if ax is None:
+        f, ax = plt.subplots(1, 1)
+
+    n_chans = np.shape(wf_mat)[1]
+    pk_chan = np.argmin(np.min(wf_mat, axis=0))
+    norm_wf = wf_mat / np.max(np.max(np.abs(wf_mat)))
+    ax.plot(norm_wf + np.arange(n_chans), c='k')
+    ax.set_yticks(np.arange(n_chans))
+    ax.set_ylim(pk_chan-c_pad-0.5, pk_chan+c_pad+0.5)
+
