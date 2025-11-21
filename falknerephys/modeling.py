@@ -15,6 +15,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.neighbors import KNeighborsClassifier
 from umap import UMAP
+from scipy.special import gamma
+from scipy.stats import binned_statistic_dd, zscore
+from sklearn.model_selection import RepeatedKFold
+import tqdm
 
 from falknerephys.preprocess import gaus_fr, spikes_to_timeseries
 
@@ -255,3 +259,84 @@ def simulate_decomp(vec_len=52000, num_u=150, method='umap', n_comp=3, umap_nn=4
     fr = spikes_to_timeseries(unit_dict, gaus_fr, 30, 30, vec_len / 30)[1]
     test, umod = act_embed(fr, method=method, n_comp=n_comp, umap_nn=umap_nn, umap_mind=umap_mind)
     return test
+
+
+def bayesian_decode(cm_x, cm_y, fr, spat_bin_size=5, cv_folds=2, cv_repeats=1, dt=0.025):
+
+    X = np.vstack((cm_x, cm_y)).T
+    X += np.abs(np.nanmin(X, axis=0))
+
+    y = zscore(fr, axis=0)
+
+    Px, bin_edges, bin_numbers = compute_Px(X, spat_bin_size)
+
+    crossval = RepeatedKFold(n_splits=cv_folds, n_repeats=cv_repeats)
+
+    errors = []
+    cv_pred = []
+    for i, (train, test) in enumerate(crossval.split(y)):
+        Y_train, Y_test = y[train], y[test]
+
+        Pyx = compute_Pyx(Y_train, bin_numbers[train], Px.shape)
+
+        lls = compute_lls(Y_test, Pyx, Px, dt)
+
+        pred_X = np.array([np.unravel_index(time_bin.argmax(), time_bin.shape) for time_bin in lls])
+        true_X = bin_numbers[test]
+
+        errors.append(np.linalg.norm(true_X - pred_X, axis=1) * spat_bin_size)
+        cv_pred.append((pred_X * spat_bin_size, true_X * spat_bin_size))
+
+    errors = np.concatenate(errors)
+
+    return errors, cv_pred
+
+
+def compute_Px(x, spat_bin_size):
+    num_bins = (np.amax(x) - np.amin(x)) // spat_bin_size
+    Px, bin_edges, bin_numbers = binned_statistic_dd(x, np.ones(x.shape[0]), statistic='count', bins=num_bins,
+                                                     expand_binnumbers=True)
+
+    # num_bins = np.floor(np.max(x, axis=0) / spat_bin_size)
+    # bins0 = np.linspace(0, num_bins[0] * spat_bin_size, int(num_bins[0]))
+    # bins1 = np.linspace(0, num_bins[1] * spat_bin_size, int(num_bins[1]))
+    # Px, bin_edges, bin_numbers = binned_statistic_dd(x, np.ones(x.shape[0]), statistic='count', bins=(bins0, bins1),
+    #                                                  expand_binnumbers=True)
+    bin_numbers -= 1
+    Px = Px / np.sum(Px)
+
+    return Px, bin_edges, bin_numbers.T
+
+
+def compute_Pyx(y, bin_numbers, Px_shape):
+    Pyx = np.zeros(Px_shape + (y.shape[1],))
+    for bin_id in np.unique(bin_numbers, axis=0):
+        # bin_id = np.array([bin_id,])
+        Pyx[tuple(bin_id)] = np.mean(y[np.all(bin_numbers == bin_id, axis=1), :], axis=0)
+
+    return Pyx
+
+
+def compute_lls(y, Pyx, Px, dt):
+    Pxy = np.zeros((y.shape[0],) + Px.shape)
+    for time_bin in range(y.shape[0]):
+        posterior = (np.power((dt * Pyx), y[time_bin, :])) * np.exp(dt * -1 * Pyx) / gamma(y[time_bin, :] + 1)
+        posterior = posterior * np.expand_dims(Px, axis=-1)
+        lls = np.log(posterior)
+        lls = normalize_lls(lls)
+        Pxy[time_bin] = lls
+
+    return Pxy
+
+
+def normalize_lls(lls):
+    # lls[np.isneginf(lls)] = np.nan
+    lls = np.nansum(lls, axis=-1)
+    lls = np.exp(lls)
+
+    # lls = lls - np.nanmax(lls)
+    lls /= np.sum(lls)
+    # lls = 1 - lls
+    lls[np.isnan(lls)] = 0
+
+    return lls
