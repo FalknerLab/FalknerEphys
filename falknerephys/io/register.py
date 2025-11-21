@@ -7,9 +7,11 @@ import numpy as np
 import tifffile as tiff
 from scipy.ndimage import binary_dilation
 from sklearn.cluster import AgglomerativeClustering
+from scipy import stats
 from brainrender import Scene
 from brainrender.actors import Line, Points, Volume, Point
 import matplotlib
+import matplotlib.pyplot as plt
 from allensdk.core.mouse_connectivity_cache import MouseConnectivityCache
 
 
@@ -56,11 +58,19 @@ def register_brain(tiff_stack, out_dir, vox_dims=None, orientation='sal', atlas=
 
 
 def segment_tracks(atlas_reg_tiff, samp_pt_scale=10, shanks_thresh=350, poly_deg=1, shank_ord='PostAnt', vox_sz=25,
-                    save_path=None, npx_chan_file=None):
+                    save_path=None, npx_chan_file=None, shank_box=25):
 
 
     tiff_vol = tiff.imread(atlas_reg_tiff)
-    kx, ky, kz = np.where(tiff_vol > shanks_thresh)
+    thresh_tiff = tiff_vol > shanks_thresh
+    topdown = np.sum(thresh_tiff, axis=1)
+    my = np.arange(topdown.shape[0]) @ np.mean(topdown, axis=1) / np.sum(np.mean(topdown, axis=1))
+    mx = np.arange(topdown.shape[1]) @ np.mean(topdown, axis=0) / np.sum(np.mean(topdown, axis=0))
+    thresh_tiff[int(my + shank_box):, :, :] = 0
+    thresh_tiff[:int(my - shank_box), :, :] = 0
+    thresh_tiff[:, :, int(mx + shank_box):] = 0
+    thresh_tiff[:, :, :int(mx - shank_box)] = 0
+    kx, ky, kz = np.where(thresh_tiff)
     filt_vol = np.zeros_like(tiff_vol)
     filt_vol[kx, ky, kz] = tiff_vol[kx, ky, kz]
     norm_vol = filt_vol / np.max(filt_vol)
@@ -193,18 +203,22 @@ def register_probes(tiff_path, probe_json=None, out_path=None, notrace=False, mi
         show_shank_tracks(shank_data_file)
 
 
-def add_regions(*args, brain=None, colored=False, alpha=0.25):
+def add_regions(region_list, brain=None, colors=None, alpha=0.25):
     if brain is None:
         brain = Scene()
 
-    if colored:
-        cmap = matplotlib.colormaps['Accent']
-        colors = cmap(np.linspace(0, 1, len(args)))
-        cols_hex = [matplotlib.colors.to_hex(c) for c in colors]
-    else:
-        cols_hex = ['w' for i in range(len(args))]
+    if colors is None:
+        cols_hex = ['w' for i in range(len(region_list))]
         alpha = 0.1
-    for region, col in zip(args, cols_hex):
+    elif type(colors) == str:
+        cols_hex = [colors for i in range(len(region_list))]
+    elif len(colors) == len(region_list):
+        cols_hex = colors
+    else:
+        cmap = matplotlib.colormaps['Accent']
+        colors = cmap(np.linspace(0, 1, len(region_list)))
+        cols_hex = [matplotlib.colors.to_hex(c) for c in colors]
+    for region, col in zip(region_list, cols_hex):
         brain.add_brain_region(region, alpha=alpha, color=col)
 
     return brain
@@ -222,3 +236,45 @@ def add_allen_data(allen_exp_id, brain=None, vox_sz=25, min_density=0.25):
 
     brain.add(Volume(pd[0], voxel_size=vox_sz, min_value=min_density, cmap='viridis'))
     return brain
+
+
+def project_svg(brain=None, use_silhouette=False, slice_pos=5000, slice_axis='sag', save_file=None, ax=None, show_brain=True):
+    if brain is None:
+        brain = Scene()
+    if ax is None:
+        f, ax = plt.subplots(1, 1, figsize=(8, 4))
+    ax_ind = 0
+    match slice_axis:
+        case 'sag':
+            ax_ind = 2
+        case 'cor':
+            ax_ind = 0
+        case 'hor':
+            ax_ind = 1
+
+    norm = [0, 0, 0]
+    org = [0, 0, 0]
+    norm[ax_ind] = 1
+    org[ax_ind] = slice_pos
+    sil_ax = ['x', 'y', 'z']
+    pt_inds = [(1, 2), (0, 2), (0, 1)]
+    for a in brain.actors:
+        if a.name != 'root' or show_brain:
+            if use_silhouette:
+                splane = a.mesh.clone().project_on_plane(sil_ax[ax_ind])
+            else:
+                splane = a.mesh.clone().slice(origin=org, normal=norm)
+            if splane is not None:
+                splane = splane.boundaries()
+                pts = splane.coordinates
+                edges = splane.lines
+                if use_silhouette:
+                    edges = splane.edges
+                for e in edges:
+                    pt0 = [pts[e[0], pt_inds[ax_ind][0]], pts[e[1], pt_inds[ax_ind][0]]]
+                    pt1 = [pts[e[0], pt_inds[ax_ind][1]], pts[e[1], pt_inds[ax_ind][1]]]
+                    ax.plot(pt0, pt1, 'k')
+        # ax.set_ylim(8000, 0)
+    if save_file is not None:
+        plt.savefig(save_file)
+
