@@ -299,7 +299,7 @@ def prep_raw_unitmatch(folds, only_good = True):
             erd.save_avg_waveforms(avg_waveforms, KS_dirs[sid], good_units[sid])
 
 
-def run_unitmatch(fold0, fold1, only_good=True, thresh=0.75):
+def run_unitmatch(fold0, fold1, only_good=True, thresh=0.75, use_bombcell=False):
     # Get default parameters, can add your own before or after!
     param = default_params.get_default_param()
 
@@ -309,6 +309,10 @@ def run_unitmatch(fold0, fold1, only_good=True, thresh=0.75):
 
     param['KS_dirs'] = KS_dirs
     wave_paths, unit_label_paths, channel_pos = util.paths_from_KS(KS_dirs)
+    if not use_bombcell:
+        unit_label_paths[0] = os.path.join(KS_dirs[0], 'cluster_group.tsv')
+        unit_label_paths[1] = os.path.join(KS_dirs[1], 'cluster_group.tsv')
+
     param = util.get_probe_geometry(channel_pos[0], param)
     # STEP 0 -- data preparation
     # Read in data and select the good units and exact metadata
