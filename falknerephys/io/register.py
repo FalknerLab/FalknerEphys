@@ -5,14 +5,26 @@ import re
 
 import numpy as np
 import tifffile as tiff
+from dask.array.random import permutation
+from networkx.algorithms.approximation.traveling_salesman import traveling_salesman_problem
+from networkx.algorithms.cycles import find_cycle
+from networkx.algorithms.dag import dag_longest_path
+from networkx.algorithms.isomorphism.isomorphvf2 import DiGMState
+from networkx.algorithms.shortest_paths.generic import all_shortest_paths
+from networkx.algorithms.simple_paths import all_simple_paths
+from networkx.classes import DiGraph
 from scipy.ndimage import binary_dilation
+from scipy.spatial import distance_matrix
 from sklearn.cluster import AgglomerativeClustering
+from sklearn.neighbors import NearestNeighbors
 from scipy import stats
+from scipy.sparse.csgraph import shortest_path
 from brainrender import Scene
 from brainrender.actors import Line, Points, Volume, Point
 import matplotlib
 import matplotlib.pyplot as plt
 from allensdk.core.mouse_connectivity_cache import MouseConnectivityCache
+import networkx as nx
 
 
 def make_tiff_stack(tiff_prefix, out_fold, data_folder, chans=None):
@@ -251,7 +263,6 @@ def project_svg(brain=None, use_silhouette=False, slice_pos=5000, slice_axis='sa
             ax_ind = 0
         case 'hor':
             ax_ind = 1
-
     norm = [0, 0, 0]
     org = [0, 0, 0]
     norm[ax_ind] = 1
@@ -263,18 +274,30 @@ def project_svg(brain=None, use_silhouette=False, slice_pos=5000, slice_axis='sa
             if use_silhouette:
                 splane = a.mesh.clone().project_on_plane(sil_ax[ax_ind])
             else:
-                splane = a.mesh.clone().slice(origin=org, normal=norm)
+                try:
+                    splane = a.mesh.clone().slice(origin=org, normal=norm)
+                except:
+                    splane = None
             if splane is not None:
-                splane = splane.boundaries()
-                pts = splane.coordinates
-                edges = splane.lines
-                if use_silhouette:
-                    edges = splane.edges
-                for e in edges:
-                    pt0 = [pts[e[0], pt_inds[ax_ind][0]], pts[e[1], pt_inds[ax_ind][0]]]
-                    pt1 = [pts[e[0], pt_inds[ax_ind][1]], pts[e[1], pt_inds[ax_ind][1]]]
-                    ax.plot(pt0, pt1, 'k')
-        # ax.set_ylim(8000, 0)
+                if a.br_class == 'Volume':
+                    pts = splane.vertices[:, [pt_inds[ax_ind][0], pt_inds[ax_ind][1]]]
+                    pt_cols = splane.pointcolors / 255
+                    ax.scatter(pts[:, 0], pts[:, 1], c=pt_cols)
+                else:
+                    splane = splane.boundaries()
+                    pts = splane.coordinates[:, [pt_inds[ax_ind][0], pt_inds[ax_ind][1]]]
+                    clean_pts = make_shapes(pts)
+                    ax.plot(clean_pts[:, 0], clean_pts[:, 1], 'k')
     if save_file is not None:
         plt.savefig(save_file)
 
+
+def make_shapes(points, max_dist=250):
+    dist_mat = distance_matrix(points, points)
+    G = nx.Graph(dist_mat)
+    sort_ord = traveling_salesman_problem(G)
+    sort_pts = points[sort_ord, :]
+    dists = np.linalg.norm(sort_pts[1:] - sort_pts[:-1], axis=1)
+    shapes = np.where(dists > max_dist)[0]
+    sort_pts[shapes, :] = [np.nan, np.nan]
+    return sort_pts
