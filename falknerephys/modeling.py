@@ -1,6 +1,10 @@
 import random
+import time
+from copy import deepcopy
 
+import neo.core
 import numpy as np
+from numpy.random import Generator, PCG64
 
 import matplotlib.pyplot as plt
 import sklearn
@@ -8,7 +12,7 @@ from matplotlib.colors import to_rgb
 from sklearn import svm
 from sklearn.base import clone
 from sklearn.decomposition import PCA
-from sklearn.linear_model import TweedieRegressor, BayesianRidge, LogisticRegression
+from sklearn.linear_model import TweedieRegressor, BayesianRidge, LogisticRegression, LinearRegression
 from sklearn.manifold import TSNE
 from sklearn.metrics import mean_squared_error, f1_score, r2_score
 from sklearn.model_selection import train_test_split
@@ -19,8 +23,15 @@ from scipy.special import gamma
 from scipy.stats import binned_statistic_dd, zscore
 from sklearn.model_selection import RepeatedKFold
 import tqdm
+from statsmodels.tsa.stattools import grangercausalitytests
+# import jax.numpy as jnp
+# import jax.random as jr
+import matplotlib.pyplot as plt
+# from dynamax.hidden_markov_model import GaussianHMM
+# from elephant.gpfa import GPFA
+import matplotlib.animation as animation
 
-from falknerephys.preprocess import gaus_fr, spikes_to_timeseries
+from falknerephys.preprocess import gaus_fr, spikes_to_timeseries, bin_spikes
 
 
 def uniform_sample(cat_data, max_samps=0, method='random'):
@@ -40,36 +51,37 @@ def uniform_sample(cat_data, max_samps=0, method='random'):
     return cat_inds
 
 
-def run_rc_glm(behav_pred, unit_data, glm_model=TweedieRegressor(power=1, alpha=0.5, link='log')):
+def run_rc_glm(behav_pred, u_fr, refit=True, glm_model=TweedieRegressor(power=1, alpha=0.01, link='log', max_iter=1000), cv=0):
     nans = np.any(np.isnan(behav_pred), axis=1)
     behav_pred = behav_pred[~nans]
-    unit_data = unit_data[~nans]
-    num_u = np.shape(unit_data)[1]
+    u_fr = u_fr[~nans]
     num_f = np.shape(behav_pred)[1]
-    coef_per_unit = []
-    r2_per_unit = []
-    for u in range(num_u):
-        u_fr = unit_data[:, u]
-        X_train, X_test, y_train, y_test = train_test_split(behav_pred, u_fr,
-                                                            test_size=0.2, random_state=42)
-        full_glm = clone(glm_model)
-        full_glm.fit(X_train, y_train)
-        full_pred = full_glm.predict(X_test)
-        r2_full = r2_score(y_test, full_pred)
-        rel_cont = []
-        for f in range(num_f):
+    X_train, X_test, y_train, y_test = train_test_split(behav_pred, u_fr,
+                                                        test_size=0.2, random_state=42)
+    full_glm = clone(glm_model)
+    full_glm.fit(X_train, y_train)
+    full_pred = full_glm.predict(X_test)
+    r2_full = r2_score(y_test, full_pred)
+    rel_cont = []
+    for f in range(num_f):
+        if refit:
             part_X_train = np.delete(X_train, f, axis=1)
             part_X_test = np.delete(X_test, f, axis=1)
             part_glm = sklearn.clone(glm_model)
             part_glm.fit(part_X_train, y_train)
             part_pred = part_glm.predict(part_X_test)
             r2_part = r2_score(y_test, part_pred)
-            rel_cont.append((r2_full - r2_part) / r2_full)
-        coef_per_unit.append(rel_cont/np.sum(rel_cont))
-        r2_per_unit.append(r2_full)
-    rc_per_unit = np.array(coef_per_unit)
-    r2_per_unit = np.array(r2_per_unit)
-    return rc_per_unit, r2_per_unit
+        else:
+            full_copy = deepcopy(full_glm)
+            full_copy.coef_[f] = 0
+            part_pred = full_copy.predict(X_test)
+            r2_part = r2_score(y_test, part_pred)
+        rc = (1 - (r2_part / r2_full))
+        rc = max(rc, 0)
+        rel_cont.append(rc)
+    rel_cont = np.array(rel_cont)
+    coefs = rel_cont/np.sum(rel_cont)
+    return coefs, r2_full
 
 
 def make_design_matrix(behav_mat, pred_type=None, fs=30, time_width_ms=250):
@@ -96,15 +108,20 @@ def make_design_matrix(behav_mat, pred_type=None, fs=30, time_width_ms=250):
     return design_mat
 
 
-def run_reg_decoder(x_data, target_vars, model='glm', k=0, categorical=False, test_inds=None):
+def run_reg_decoder(x_data, target_vars, model='glm', k=5, categorical=False, test_inds=None, stratify=False,
+                    test_stat='mse', max_iter=1000):
     if test_inds is None:
-        train_input, test_input, train_output, test_output = train_test_split(x_data, target_vars, test_size=0.2,
-                                                                              random_state=42)
+        if stratify:
+            train_input, test_input, train_output, test_output = train_test_split(x_data, target_vars, test_size=0.2,
+                                                                                  random_state=42, stratify=target_vars)
+        else:
+            train_input, test_input, train_output, test_output = train_test_split(x_data, target_vars, test_size=0.2,
+                                                                                  random_state=42)
     else:
         test_input = x_data[test_inds]
         test_output = target_vars[test_inds]
-        train_input = x_data[~test_inds]
-        train_output = target_vars[~test_inds]
+        train_input = np.delete(x_data, test_inds, axis=0)
+        train_output = np.delete(target_vars, test_inds, axis=0)
     model_obj = None
     if type(model) == str:
         if model == 'svm':
@@ -112,25 +129,36 @@ def run_reg_decoder(x_data, target_vars, model='glm', k=0, categorical=False, te
             if categorical:
                 model_obj = svm.SVC(kernel='linear')
         elif model == 'glm':
-            model_obj = TweedieRegressor(power=1, alpha=0.5, link='log')
+            model_obj = TweedieRegressor(power=1, alpha=0.05, link='log', max_iter=max_iter)
         elif model == 'bayes':
-            model_obj = BayesianRidge()
+            model_obj = BayesianRidge(max_iter=max_iter)
         elif model == 'knn':
             model_obj = KNeighborsClassifier(n_neighbors=k, n_jobs=-1, weights='distance')
         elif model == 'logistic':
-            model_obj = LogisticRegression()
+            model_obj = LogisticRegression(max_iter=max_iter)
+        elif model == 'ols':
+            model_obj = LinearRegression()
     else:
         model_obj = model
     if target_vars.ndim > 1:
         model_obj = MultiOutputRegressor(model_obj)
     model_obj.fit(train_input, train_output)
     test_pred = model_obj.predict(test_input)
-    mse = mean_squared_error(test_output, test_pred)
+    pred_all = model_obj.predict(x_data)
+    test_val = None
+    if test_stat == 'mse':
+        test_val = mean_squared_error(test_output, test_pred)
+    elif test_stat == 'r2':
+        test_val = r2_score(test_output, test_pred)
     f1 = None
+    acc = None
     if categorical:
         f1 = f1_score(test_output, test_pred, average='weighted')
-    pred_all = model_obj.predict(x_data)
-    return model_obj, pred_all, mse, f1, test_output, test_pred
+        test_c = np.argmax(test_output, axis=1)
+        pred_c = np.argmax(test_pred, axis=1)
+        acc = [100*np.sum(test_c[pred_c == i] == i)/len(test_c[pred_c == i]) for i in range(4)]
+
+    return model_obj, pred_all, test_val, f1, test_output, test_pred, acc, train_input, test_input
 
 
 def run_pred_randshuf(u_data, cat_data, k=3, chk_sz=300, rand_state=42, test_ratio=0.2, model=None, num_shufs=20, categorical=False):
@@ -208,32 +236,38 @@ def make_one_hot(cats_1d):
     return one_hot
 
 
-def simulate_movement(len_output=30000):
-    vel_range = (0, 1)
-    acc_range = (-0.05, 0.05)
-    turn_vel_range = (-0.5, 0.5)
-    x_pos = 0
-    y_pos = 0
-    ang = np.random.uniform(-np.pi, np.pi, 1)
-    vel = np.random.uniform(vel_range[0], vel_range[1], 1)
-    x_out = np.zeros(len_output)
-    y_out = np.zeros(len_output)
-    vel_out = np.zeros(len_output)
-    acc_out = np.zeros(len_output)
-    for i in range(len_output):
-        x_pos += np.sin(ang) * vel
-        y_pos += np.cos(ang) * vel
-        r_acc = np.random.uniform(acc_range[0], acc_range[1], 1)
-        vel += r_acc
-        vel = max(vel, vel_range[0])
-        vel = min(vel, vel_range[1])
-        d_ang = np.random.uniform(turn_vel_range[0], turn_vel_range[1], 1)
-        ang += d_ang
-        x_out[i] = x_pos
-        y_out[i] = y_pos
-        vel_out[i] = vel
-        acc_out[i] = r_acc
-    return x_out, y_out, vel_out, acc_out
+def circ_random_walk(n_steps=20000, bias=None, circ_rad=30, x_pos=0, y_pos=0, vel=1, ang=0):
+    pdf_size = 180
+    if bias is None:
+        bias = np.ones(pdf_size)
+    else:
+        pdf_size = len(bias)
+    norm_bias = bias / np.sum(bias)
+    vels = np.random.poisson(lam=0.005, size=n_steps)
+    t_vals = np.linspace(-np.pi, np.pi, pdf_size)
+    xs = np.zeros(n_steps)
+    ys = np.zeros(n_steps)
+    rand_gen = Generator(PCG64())
+    for i in range(n_steps):
+        temp_bias = norm_bias.copy()
+        vel = vels[i]
+        ang_diffs = (((t_vals - ang) + np.pi) % (2 * np.pi) - np.pi)
+        new_angs = 0.25 * ang_diffs + ang
+        print(min(new_angs), max(new_angs))
+        samp_xs = x_pos + np.sin(new_angs) * vel
+        samp_ys = y_pos + np.cos(new_angs) * vel
+        samp_rs = np.array([np.linalg.norm([tx, ty]) for tx, ty in zip(samp_xs, samp_ys)])
+        # print(np.min(samp_rs))
+        temp_bias[samp_rs > circ_rad] = 0
+        temp_bias = temp_bias / np.nansum(temp_bias)
+        choice_ang = rand_gen.choice(t_vals, size=1, p=temp_bias)
+        diff_ang = (((choice_ang - ang) + np.pi) % (2 * np.pi) - np.pi)
+        new_ang = 0.25 * diff_ang + ang
+        x_pos += np.sin(new_ang) * vel
+        y_pos += np.cos(new_ang) * vel
+        xs[i] = x_pos
+        ys[i] = y_pos
+    return xs, ys
 
 
 def generate_spikes_from_behavior(behavior, exite_inhibit='excite', noise=0.1):
@@ -247,7 +281,7 @@ def generate_spikes_from_behavior(behavior, exite_inhibit='excite', noise=0.1):
 
 
 def simulate_decomp(vec_len=52000, num_u=150, method='umap', n_comp=3, umap_nn=45, umap_mind=0.4):
-    x, y, v, a = simulate_movement(len_output=vec_len)
+    x, y, v, a = circ_random_walk(n_steps=vec_len)
     unit_dict = {}
     behavs = [x, y, v, a]
     b_num = 0
@@ -292,28 +326,24 @@ def bayesian_decode(cm_x, cm_y, fr, spat_bin_size=5, cv_folds=2, cv_repeats=1, d
     return errors, cv_pred
 
 
-def compute_Px(x, spat_bin_size):
-    num_bins = (np.amax(x) - np.amin(x)) // spat_bin_size
-    Px, bin_edges, bin_numbers = binned_statistic_dd(x, np.ones(x.shape[0]), statistic='count', bins=num_bins,
-                                                     expand_binnumbers=True)
-
-    # num_bins = np.floor(np.max(x, axis=0) / spat_bin_size)
-    # bins0 = np.linspace(0, num_bins[0] * spat_bin_size, int(num_bins[0]))
-    # bins1 = np.linspace(0, num_bins[1] * spat_bin_size, int(num_bins[1]))
-    # Px, bin_edges, bin_numbers = binned_statistic_dd(x, np.ones(x.shape[0]), statistic='count', bins=(bins0, bins1),
-    #                                                  expand_binnumbers=True)
+def compute_Px(x, spat_bin_size, bin_range=None):
+    if bin_range is None:
+        bins = (np.amax(x) - np.amin(x)) // spat_bin_size
+        Px, bin_edges, bin_numbers = binned_statistic_dd(x, np.ones(x.shape[0]), statistic='count', bins=bins,
+                                                         expand_binnumbers=True)
+    else:
+        bins = np.round((np.max(bin_range) - np.min(bin_range)) / spat_bin_size)
+        Px, bin_edges, bin_numbers = binned_statistic_dd(x, np.ones(x.shape[0]), statistic='count', bins=bins,
+                                                         expand_binnumbers=True, range=bin_range)
     bin_numbers -= 1
     Px = Px / np.sum(Px)
-
     return Px, bin_edges, bin_numbers.T
 
 
 def compute_Pyx(y, bin_numbers, Px_shape):
     Pyx = np.zeros(Px_shape + (y.shape[1],))
     for bin_id in np.unique(bin_numbers, axis=0):
-        # bin_id = np.array([bin_id,])
         Pyx[tuple(bin_id)] = np.mean(y[np.all(bin_numbers == bin_id, axis=1), :], axis=0)
-
     return Pyx
 
 
@@ -340,3 +370,209 @@ def normalize_lls(lls):
     lls[np.isnan(lls)] = 0
 
     return lls
+
+
+def granger(fr_mat, max_lag=10, time_len=40*60):
+    if time_len is None:
+        time_len = fr_mat.shape[0]
+    num_us = fr_mat.shape[1]
+    outps = np.zeros((num_us, num_us))
+    for i in range(num_us):
+        print(i, num_us)
+        for j in range(num_us):
+            if i != j:
+                gres = grangercausalitytests(np.diff(fr_mat[:time_len, [i, j]], axis=0)[1:], max_lag, verbose=False)
+                gpvals = [gres[g][0]['ssr_ftest'][1] for g in gres.keys()]
+                minp, lagn = np.min(gpvals), np.argmin(gpvals)
+                outps[i, j] = minp
+    plt.imshow(outps)
+    plt.show()
+
+
+def functional_connectivity(spk_dict, ephys_hz=2500):
+    fr_len_s = 60 * 10
+    out_dict = {}
+    for k, i in spk_dict.items():
+        out_dict[k] = i[i < fr_len_s]
+    fr_data = spikes_to_timeseries(out_dict, smooth_func=bin_spikes, time_win_ms=0.4, out_hz=ephys_hz, ts_len_s=fr_len_s + 1)[1]
+    spk_len, n_us = np.shape(fr_data)
+    cc_mat = np.nan * np.ones((n_us, n_us))
+    lag_mat = np.nan * np.ones((n_us, n_us))
+    num_lags = 50
+    it_time = 0
+    for u0 in range(50):
+        for u1 in range(50):
+            t0 = time.time()
+            print(u0, u1, it_time)
+            if u0 != u1 and u0 < u1:
+                rs = []
+                shifted = fr_data[:, u0]
+                for lag in range(-num_lags, num_lags + 1):
+                    end_val = shifted[0]
+                    shifted[0:-1] = shifted[1:]
+                    shifted[-1] = end_val
+                    r = shifted @ fr_data[:, u1]
+                    rs.append(r)
+                cch = np.array(rs)
+                c_ccg = hollowed_gaussian_kernel(cch)
+                norm_ccg = zscore(c_ccg)
+                max_lag = np.argmax(np.abs(norm_ccg))
+                if norm_ccg[max_lag] > 4:
+                    lag_mat[u0, u1] = (max_lag - num_lags) * 0.4
+                    cc_mat[u0, u1] = norm_ccg[max_lag]
+            t1 = time.time()
+            it_time = t1 - t0
+    f, axs = plt.subplots(1, 2)
+    a0 = axs[0].imshow(cc_mat, aspect='auto', interpolation='none')
+    plt.colorbar(a0)
+    a1 = axs[1].imshow(lag_mat, aspect='auto', interpolation='none')
+    plt.colorbar(a1)
+    plt.show()
+
+
+def hollowed_gaussian_kernel(cch, sigma=1, fraction_hollowed=.6):
+    """
+    Description
+    ----------
+    This function takes a cross-correlation histogram and convolves it with a large window
+    "partially-hollowed" Gaussian.
+
+    Detailed: To generate the low frequency baseline CCH, the observed CCG was convolved
+    with a “partially hollow” Gaussian kernel (Stark and Abeles, JoNM, 2009), with a standard
+    deviation of 10 ms, with a hollow fraction of 60% (i.e. 60% off the center bin).
+    ----------
+
+    Parameters
+    ----------
+    cch : np.ndarray
+        The CCH array that should be smoothed.
+    sigma : int
+        The sigma for smoothing (in bins); defaults to 1.
+    fraction_hollowed : float
+        Proportion-wise, the amount of window hollowed; defaults to .6.
+    ----------
+
+    Returns
+    ----------
+    smoothed_cch : np.ndarray
+        The hollow-Gaussian convolved CCH.
+    ----------
+    """
+
+    smoothed_cch = np.zeros(cch.shape[0] * 3)
+    input_array_reflected = np.concatenate((cch[::-1], cch, cch[::-1]))
+    x_v = np.arange(smoothed_cch.shape[0])
+    for idx in x_v:
+        kernel_idx = np.exp(-(x_v - idx) ** 2 / (2 * sigma ** 2))
+        kernel_idx[int(np.floor(kernel_idx.shape[0] / 2))] = kernel_idx[int(np.floor(kernel_idx.shape[0] / 2))] * (1 - fraction_hollowed)
+        kernel_idx = kernel_idx / kernel_idx.sum()
+        smoothed_cch[idx] = np.dot(kernel_idx, input_array_reflected)
+    return smoothed_cch[cch.shape[0]:cch.shape[0] * 2]
+
+
+def calculate_mi(x, y, num_states_x=5, num_states_y=11, x_lims=None, y_lims=None, as_states=True):
+
+    if as_states:
+        states_x, states_y = x, y
+    else:
+        states_x, num_states_x = get_states(x, x_lims, num_states_x)
+        states_y, num_states_y = get_states(y, y_lims, num_states_y)
+
+    Pxy, xedges, yedges = np.histogram2d(states_x, states_y, bins=(np.linspace(0, num_states_x, num_states_x+1), np.linspace(0, num_states_y, num_states_y+1)))
+    Prs = Pxy / np.sum(Pxy)
+    P_R = np.sum(Prs, axis=0)
+    P_S = np.sum(Prs, axis=1)
+
+    I_S_R = np.nansum(Prs.T * np.log2(Prs.T / (P_R[:, None] @ P_S[None, :])))
+    exp_mat = np.linspace(0, 1, len(Prs))[:, None] * np.ones((len(Prs), Prs.shape[1]))
+    exp_x = np.sum(exp_mat * Prs, axis=0)
+    return I_S_R, Prs, exp_x
+
+
+def mutual_info_change(x, y, num_states_x=5, num_states_y=11, x_lims=None, y_lims=None, num_bootstraps=10,
+                       num_shuffles=10, as_states=False):
+    if as_states:
+        states_x, states_y = x, y
+    else:
+        states_x, num_states_x = get_states(x, x_lims, num_states_x)
+        states_y, num_states_y = get_states(y, y_lims, num_states_y)
+
+    sem_mi = None
+    if num_bootstraps > 1:
+        kfolds = RepeatedKFold(n_splits=2, n_repeats=num_bootstraps//2)
+        bs_mi = []
+        exp_acc = []
+        for b, (train_inds, test_inds) in enumerate(kfolds.split(x)):
+            this_x = states_x[train_inds]
+            this_y = states_y[train_inds]
+            I_S_R, Prs, exp_x = calculate_mi(this_x, this_y, num_states_x=num_states_x, num_states_y=num_states_y,
+                                             as_states=as_states)
+
+            if np.isnan(I_S_R):
+                I_S_R = 0
+
+            bs_mi.append(I_S_R)
+            exp_acc.append(exp_x)
+        mean_mi = np.nanmean(bs_mi)
+        sem_mi = np.nanstd(bs_mi) / np.sqrt(len(bs_mi))
+        mean_Es = np.nanmean(np.array(exp_acc), axis=0)
+    else:
+        mean_mi, Prs, mean_Es = calculate_mi(states_x, states_y)
+
+    null_mi = []
+    roll_n = np.random.randint(len(states_y), size=num_shuffles)
+    for s in range(num_shuffles):
+        this_y = np.roll(states_y, roll_n[s], axis=0)
+        n_mi = calculate_mi(states_x, this_y, num_states_x=num_states_x, num_states_y=num_states_y, as_states=as_states)[0]
+        null_mi.append(n_mi)
+
+    p_val = 1 - (np.sum(mean_mi > null_mi) / len(null_mi))
+    mean_null = np.nanmean(null_mi)
+    std_null = np.nanstd(null_mi)
+    sig_change = mean_mi > (mean_null + 2*std_null)
+
+    if num_bootstraps > 1:
+        print(f'Mutual information I(S,R) = {mean_mi:.4f} SEM = {sem_mi:.4f} p = {p_val:.4f} ΔMI = {(mean_mi - mean_null):.4f} Sig? {sig_change}')
+    else:
+        print(f'Mutual information I(S,R) = {mean_mi:.4f} p = {p_val:.4f} ΔMI = {(mean_mi - mean_null):.4f} Sig? {sig_change}')
+
+    return mean_mi, sem_mi, p_val, mean_null, sig_change
+
+
+def get_states(x, x_lims=None, num_states=10):
+    if x_lims is None:
+        x_min = np.min(x)
+        x_max = np.max(x)
+    else:
+        x_min, x_max = x_lims[0], x_lims[1]
+
+    if x.ndim == 1:
+        x = x[:, None]
+
+    states_x = np.digitize(x, np.linspace(x_min, x_max, num_states)) - 1
+    total_bins = num_states
+
+    if states_x.shape[1] == 2:
+        states_x = states_x[:, 0] * num_states + states_x[:, 1]
+        total_bins = num_states ** 2
+    else:
+        states_x = states_x[:, 0]
+    return states_x, total_bins
+
+
+# def fit_hmm_to_fr(spk_dict, num_states=None):
+#     gpfa = GPFA(bin_size=0.1*s, em_max_iters=10)
+#     spike_trains = [[neo.core.SpikeTrain(spk_dict[u], 1800, units=s) for u in spk_dict.keys()]]
+#     latent_space = gpfa.fit_transform(spike_trains)
+#     # latent_space, _ = act_embed(fr_mat, n_comp=10, method='umap')
+#     key1, key2, key3 = jr.split(jr.PRNGKey(0), 3)
+#     num_states = 3
+#     emission_dim = 10
+#     hmm = GaussianHMM(num_states, emission_dim)
+#     params, props = hmm.initialize(key3, method="kmeans", emissions=latent_space)
+#     params, lls = hmm.fit_em(params, props, latent_space, num_iters=20)
+#     smooth_res = hmm.smoother(params, latent_space)
+#     state_probs = smooth_res.smoothed_probs
+#     f, axs = plt.subplots(num_states, 1)
+#     [axs[i].plot(state_probs[:, i]) for i in range(num_states)]
+#     plt.show()
