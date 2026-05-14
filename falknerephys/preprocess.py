@@ -20,9 +20,19 @@ def resample_spikes(spikes, in_hz, out_hz):
     return resamp_spikes
 
 
-def bin_spikes(spikes, fs, bin_ms, length_s):
-    time_vec, bin_out = square_fr(spikes, fs, bin_ms, length_s, as_fr=False)
-    return time_vec, bin_out
+def bin_spikes(spks, fs, bin_ms, out_len_s):
+    # time_vec, bin_out = square_fr(spikes, fs, bin_ms, length_s, as_fr=False)
+    spk_inds = np.floor(spks * fs).astype(int)
+    spks_t = np.zeros(int(np.ceil(fs*out_len_s)))
+    u_ts = np.unique(spk_inds)
+    sum_spk = [np.sum(spk_inds == i) for i in u_ts]
+    spks_t[u_ts] = sum_spk
+    bin_starts = np.floor(fs*np.arange(0, out_len_s, bin_ms/1000)).astype(int)
+    for b0, b1 in zip(bin_starts[:-1], bin_starts[1:]):
+        spks_t[b0:b1] = np.sum(spks_t[b0:b1])
+    spks_t[bin_starts[-1]:] = np.sum(spks_t[bin_starts[-1]:])
+    t = np.linspace(0, out_len_s, len(spks_t), dtype=np.float32)
+    return t, spks_t
 
 
 def square_fr(spks, fs, time_width_ms, out_len_s, as_fr=True):
