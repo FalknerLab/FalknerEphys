@@ -8,7 +8,7 @@ from matplotlib.collections import PathCollection
 import matplotlib
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 import matplotlib.pyplot as plt
-from falknerephys.io.utils import find_files
+from falknerephys.utils import find_files
 from falknerephys.old.classes import MDcontroller
 
 
