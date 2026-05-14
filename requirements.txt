@@ -15,7 +15,7 @@ tkfilebrowser
 networkx
 umap-learn
 kilosort[gui]
-UnitMatchPy==3.3.1
+UnitMatchPy
 bombcell
 morphapi
 brainreg[napari]
