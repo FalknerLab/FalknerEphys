@@ -213,7 +213,7 @@ def prep_raw_unitmatch(folds, only_good = True):
     n_channels = 384  # neuropixels default
 
     n_sessions = len(KS_dirs)  # How many session are being extracted
-    spike_ids, spike_times, good_units, _ = erd.extract_KS_data(KS_dirs, extract_good_units_only=only_good)
+    spike_ids, spike_times, good_units, all_ids = erd.extract_KS_data(KS_dirs, extract_good_units_only=only_good)
 
     if only_good:
         for sid in range(n_sessions):
@@ -243,7 +243,7 @@ def prep_raw_unitmatch(folds, only_good = True):
 
             # Save in file named 'RawWaveforms' in the KS Directory
             print(good_units[sid])
-            erd.save_avg_waveforms(avg_waveforms, KS_dirs[sid], good_units[sid], extract_good_units_only=True)
+            erd.save_avg_waveforms(avg_waveforms, KS_dirs[sid], all_ids, good_units[sid], extract_good_units_only=True)
 
     else:
         for sid in range(n_sessions):
@@ -279,8 +279,7 @@ def prep_raw_unitmatch(folds, only_good = True):
             avg_waveforms = np.asarray(avg_waveforms)
 
             # Save in file named 'RawWaveforms' in the KS Directory
-            print(good_units[sid])
-            erd.save_avg_waveforms(avg_waveforms, KS_dirs[sid], good_units[sid])
+            erd.save_avg_waveforms(avg_waveforms, KS_dirs[sid], all_ids, good_units[sid])
 
 
 def load_unitmatch(fold0, fold1, only_good=True, use_bombcell=False):
