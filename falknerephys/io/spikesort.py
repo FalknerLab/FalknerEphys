@@ -365,9 +365,7 @@ def run_unitmatch(fold0, fold1, only_good=True, thresh=0.75, use_bombcell=False)
     output_threshold[output_prob_matrix > match_threshold] = 1
 
     num_units_l = len(good_units[0])
-    num_units_r = len(good_units[1])
 
-    plt.imshow(output_threshold, cmap='Greys')
     matches = np.argwhere(output_threshold == 1)
 
     between_matches = []
@@ -376,14 +374,15 @@ def run_unitmatch(fold0, fold1, only_good=True, thresh=0.75, use_bombcell=False)
             between_matches.append([m[0], m[1]])
     between_matches = np.array(between_matches)
     good_unit_ids = np.vstack(good_units)
-    # left_ids = good_unit_ids[between_matches[:, 0].astype(int)]
-    # right_ids = good_unit_ids[between_matches[:, 1].astype(int)]
-    left_inds = between_matches[:, 0].astype(int)
-    right_inds = between_matches[:, 1].astype(int)
-    left_labs = good_unit_ids[left_inds]
-    right_labs = good_unit_ids[right_inds]
-    # plt.show()
-    return left_inds, right_inds-num_units_l, left_labs, right_labs, waveform[left_inds, :, :, 0], waveform[right_inds, :, :, 1]
+    left_inds, right_inds, left_labs, right_labs = [], [], [], []
+    if len(between_matches) > 0:
+        left_inds = between_matches[:, 0].astype(int)
+        right_inds = between_matches[:, 1].astype(int)
+        left_labs = good_unit_ids[left_inds]
+        right_labs = good_unit_ids[right_inds]
+        right_inds -= num_units_l
+
+    return left_inds, right_inds, left_labs, right_labs, waveform[left_inds, :, :, 0], waveform[right_inds, :, :, 1]
 
 
 if __name__ == '__main__':
