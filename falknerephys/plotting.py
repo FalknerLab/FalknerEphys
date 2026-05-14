@@ -1,10 +1,13 @@
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from joblib import Parallel, delayed
 from matplotlib.patches import Circle
 from debugpy.common.log import warning
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import pdist
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.mixture import GaussianMixture
 
 
 def fempl_style():
@@ -18,6 +21,7 @@ def fempl_style():
     mpl.rcParams['axes.spines.right'] = False
     mpl.rcParams['axes.spines.top'] = False
     mpl.rcParams['grid.linestyle'] = ':'
+    plt.rcParams['savefig.dpi'] = 600
 
 
 def jitter_plot(spk_s, ax=None):
@@ -46,7 +50,7 @@ def fr_heatmap(unit_fr, ax=None, unit_ids=None, hz=None, x_tick_s=10, fr_min=0, 
     return ax, im
 
 
-def fr_per_xy(ax, spk_s, x, y, num_bins=30, xy_range=None, xy_hz=40, fr_min=0, fr_max=25):
+def fr_per_xy(ax, spk_s, x, y, num_bins=30, xy_range=None, xy_hz=40, fr_min=0, fr_max=0.1):
     ## Count indices in spks based on binned 2D locations using x and y
     spks = np.round(spk_s * xy_hz).astype(int)
     if xy_range is None:
@@ -237,4 +241,38 @@ def plot_waveforms(wf_mat, ax=None, c_pad=5):
     ax.plot(norm_wf + np.arange(n_chans), c='k')
     ax.set_yticks(np.arange(n_chans))
     ax.set_ylim(pk_chan-c_pad-0.5, pk_chan+c_pad+0.5)
+
+
+def plot_glm(feature_weights, model_r2s, labels=None, num_gmm_comp=-1, r2_thresh=0.025, max_c=15, sort_method='gmm'):
+    feature_weights = feature_weights[model_r2s > r2_thresh, :]
+    model_r2s = model_r2s[model_r2s > r2_thresh]
+    bics = []
+    clus_num = np.zeros_like(model_r2s)
+    if sort_method == 'gmm':
+        if num_gmm_comp < 0:
+            for c in range(1, max_c):
+                test_gmm = GaussianMixture(n_components=c)
+                test_gmm.fit(feature_weights)
+                bics.append(test_gmm.bic(feature_weights))
+            num_gmm_comp = np.argmin(np.array(bics)) + 1
+        clus_num = GaussianMixture(n_components=num_gmm_comp).fit_predict(feature_weights)
+    if sort_method == 'max':
+        clus_num = np.argmax(feature_weights, axis=1)
+    if sort_method == 'agg':
+        clus_num = AgglomerativeClustering(num_gmm_comp).fit_predict(feature_weights)
+    sort_ord = np.argsort(clus_num)
+    f, ax = plt.subplots(1, 2)
+    ax[0].pcolor(feature_weights[sort_ord, :])
+    if labels is not None:
+        ax[0].set_xticks(np.arange(len(labels)) + 0.5, labels)
+        ax[0].tick_params(axis='x', labelrotation=90)
+    ax[0].set_title(f'Feature Weights n_clusters = {num_gmm_comp}')
+    ax[1].stem(model_r2s[sort_ord], orientation='horizontal')
+    ax[1].set_ylim(-0.5, len(model_r2s) - 0.5)
+
+    if sort_method == 'gmm':
+        plt.figure()
+        plt.plot(np.arange(1, max_c), bics, 'ko--')
+
+    return clus_num, sort_ord
 
