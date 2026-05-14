@@ -213,7 +213,7 @@ def prep_raw_unitmatch(folds, only_good = True):
     n_channels = 384  # neuropixels default
 
     n_sessions = len(KS_dirs)  # How many session are being extracted
-    spike_ids, spike_times, good_units = erd.extract_KS_data(KS_dirs, extract_good_units_only=only_good)
+    spike_ids, spike_times, good_units, _ = erd.extract_KS_data(KS_dirs, extract_good_units_only=only_good)
 
     if only_good:
         for sid in range(n_sessions):
