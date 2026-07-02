@@ -20,4 +20,4 @@ bombcell
 morphapi
 brainreg[napari]
 brainrender
-UnitMatchPy
+UnitMatchPy[full,notebooks]
