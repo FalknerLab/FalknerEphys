@@ -8,8 +8,8 @@ from matplotlib.collections import PathCollection
 import matplotlib
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 import matplotlib.pyplot as plt
+import yaml
 from falknerephys.utils import find_files
-from falknerephys.old.classes import MDcontroller
 
 
 def get_data_dialog(filter=None):
@@ -84,7 +84,7 @@ class EphysController:
             data_folder = get_data_dialog()
         self.data_folder = data_folder
         self.ephys_files = find_files(data_folder)
-        self.metadata = MDcontroller(self.ephys_files['metadata.yml'])
+        self.metadata = yaml.safe_load(self.ephys_files['metadata.yml'])
 
     def get_info(self):
         """
@@ -101,7 +101,7 @@ class EphysController:
         """
         Saves the metadata information.
         """
-        self.metadata.save_metadata(self.metadata.file_name)
+        yaml.dump(self.metadata, open(self.ephys_files['metadata.yml'], 'w'))
 
     def get_file_list(self):
         """
@@ -444,7 +444,6 @@ class PlotWidget(QWidget):
 
         # self.color_bar = self.canvas.fig.colorbar(sm,
         #              ax=self.gca(), orientation=orient, label=label)
-
 
 
 if __name__ == '__main__':
