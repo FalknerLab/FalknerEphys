@@ -2,14 +2,13 @@ import random
 import time
 from copy import deepcopy
 
-import neo.core
 import numpy as np
 from numpy.random import Generator, PCG64
-
 import matplotlib.pyplot as plt
-import sklearn
 from matplotlib.colors import to_rgb
+import sklearn
 from sklearn import svm
+from sklearn.model_selection import RepeatedKFold
 from sklearn.base import clone
 from sklearn.decomposition import PCA
 from sklearn.linear_model import TweedieRegressor, BayesianRidge, LogisticRegression, LinearRegression
@@ -18,18 +17,10 @@ from sklearn.metrics import mean_squared_error, f1_score, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.neighbors import KNeighborsClassifier
-from umap import UMAP
 from scipy.special import gamma
 from scipy.stats import binned_statistic_dd, zscore
-from sklearn.model_selection import RepeatedKFold
-import tqdm
 from statsmodels.tsa.stattools import grangercausalitytests
-# import jax.numpy as jnp
-# import jax.random as jr
-import matplotlib.pyplot as plt
-# from dynamax.hidden_markov_model import GaussianHMM
-# from elephant.gpfa import GPFA
-import matplotlib.animation as animation
+from umap import UMAP
 
 from falknerephys.preprocess import gaus_fr, spikes_to_timeseries, bin_spikes
 
@@ -80,7 +71,7 @@ def run_rc_glm(behav_pred, u_fr, refit=True, glm_model=TweedieRegressor(power=1,
         rc = max(rc, 0)
         rel_cont.append(rc)
     rel_cont = np.array(rel_cont)
-    coefs = rel_cont/np.sum(rel_cont)
+    coefs = rel_cont/np.nansum(rel_cont)
     return coefs, r2_full
 
 
@@ -558,21 +549,3 @@ def get_states(x, x_lims=None, num_states=10):
     else:
         states_x = states_x[:, 0]
     return states_x, total_bins
-
-
-# def fit_hmm_to_fr(spk_dict, num_states=None):
-#     gpfa = GPFA(bin_size=0.1*s, em_max_iters=10)
-#     spike_trains = [[neo.core.SpikeTrain(spk_dict[u], 1800, units=s) for u in spk_dict.keys()]]
-#     latent_space = gpfa.fit_transform(spike_trains)
-#     # latent_space, _ = act_embed(fr_mat, n_comp=10, method='umap')
-#     key1, key2, key3 = jr.split(jr.PRNGKey(0), 3)
-#     num_states = 3
-#     emission_dim = 10
-#     hmm = GaussianHMM(num_states, emission_dim)
-#     params, props = hmm.initialize(key3, method="kmeans", emissions=latent_space)
-#     params, lls = hmm.fit_em(params, props, latent_space, num_iters=20)
-#     smooth_res = hmm.smoother(params, latent_space)
-#     state_probs = smooth_res.smoothed_probs
-#     f, axs = plt.subplots(num_states, 1)
-#     [axs[i].plot(state_probs[:, i]) for i in range(num_states)]
-#     plt.show()
