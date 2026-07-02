@@ -12,9 +12,8 @@ import UnitMatchPy.bayes_functions as bf
 import UnitMatchPy.utils as util
 import UnitMatchPy.overlord as ov
 import UnitMatchPy.default_params as default_params
-# from UnitMatchPy.DeepUnitMatch.utils import param_fun, helpers
-# from UnitMatchPy.DeepUnitMatch.testing import test
-# from UnitMatchPy.DeepUnitMatch.preprocess import split_units
+from UnitMatchPy.DeepUnitMatch.utils import param_fun, helpers
+from UnitMatchPy.DeepUnitMatch.testing import test
 import UnitMatchPy.metric_functions as mf
 from joblib import Parallel, delayed
 
@@ -32,9 +31,6 @@ def run_ks4(imec_data_paths=None, npx_probe=None, probe_name=None, bad_channels=
             imec_data_paths = [imec_data_paths]
 
     if imec_data_paths is None:
-        # imec_data_paths = askopenfilenames(
-        #     title="Select raw data file(s)",
-        #     filetypes=(("Binary file", "*.bin"), ("All files", "*.*")))
         fold_paths = askopendirnames(title='Select folders to process')
         imec_data_paths = find_bins_no_ks(fold_paths)
 
@@ -194,8 +190,6 @@ def prep_raw_unitmatch(folds, only_good = True):
     meta_paths = []
     for f in folds:
         fold_name = os.path.split(f)[-1]
-        # bin_name = os.path.join(f, '_'.join(fold_name.split('_')[:-1]) + '_t0.imec0.ap.bin')
-        # meta_name = os.path.join(f, '_'.join(fold_name.split('_')[:-1]) + '_t0.imec0.ap.meta')
         bin_name = os.path.join(f, fold_name + '_g0_t0.imec0.ap.bin')
         meta_name = os.path.join(f, fold_name + '_g0_t0.imec0.ap.meta')
         data_paths.append(bin_name)
@@ -285,6 +279,8 @@ def prep_raw_unitmatch(folds, only_good = True):
 def load_unitmatch(fold0, fold1, only_good=True, use_bombcell=False):
     # Get default parameters, can add your own before or after!
     param = default_params.get_default_param()
+    param['waveidx'] = np.arange(9, 32).astype(int)
+    param['peak_loc'] = 21
 
     # Give the paths to the KS directories for each session
     # If you don't have a dir with channel_positions.npy etc look at the detailed example for supplying paths separately
@@ -292,6 +288,7 @@ def load_unitmatch(fold0, fold1, only_good=True, use_bombcell=False):
 
     param['KS_dirs'] = KS_dirs
     wave_paths, unit_label_paths, channel_pos = util.paths_from_KS(KS_dirs)
+
     if not use_bombcell:
         unit_label_paths[0] = os.path.join(KS_dirs[0], 'cluster_group.tsv')
         unit_label_paths[1] = os.path.join(KS_dirs[1], 'cluster_group.tsv')
@@ -307,187 +304,203 @@ def load_unitmatch(fold0, fold1, only_good=True, use_bombcell=False):
     return channel_pos, waveform, session_id, session_switch, within_session, good_units, param
 
 
-def run_unitmatch(fold0, fold1, only_good=True, thresh=0.75, use_bombcell=False):
+def run_unitmatch(fold0, fold1, only_good=True, thresh=0.75, use_bombcell=False, use_dum=True):
+
+    if use_dum:
+        return run_deepunitmatch(fold0, fold1, only_good=only_good, thresh=thresh, use_bombcell=use_bombcell)
+    else:
+        channel_pos, waveform, session_id, session_switch, within_session, good_units, param = load_unitmatch(fold0, fold1,
+                                                                                                              only_good,
+                                                                                                              use_bombcell)
+
+
+        # Create clus_info, contains all unit id/session related info
+        clus_info = {'good_units': good_units, 'session_switch': session_switch, 'session_id': session_id,
+                     'original_ids': np.concatenate(good_units)}
+
+        # STEP 1
+        # Extract parameters from waveform
+
+        extracted_wave_properties = ov.extract_parameters(waveform, channel_pos, clus_info, param)
+
+
+        # STEP 2, 3, 4
+        # Extract metric scores
+        total_score, candidate_pairs, scores_to_include, predictors = ov.extract_metric_scores(extracted_wave_properties,
+                                                                                               session_switch,
+                                                                                               within_session, param,
+                                                                                               niter=2)
+
+        # STEP 5
+        # Probability analysis
+        # Get prior probability of being a match
+        prior_match = 1 - (param['n_expected_matches'] / param['n_units'] ** 2)  # freedom of choose in prior prob
+        priors = np.array((prior_match, 1 - prior_match))
+
+        # Construct distributions (kernels) for Naive Bayes Classifier
+        labels = candidate_pairs.astype(int)
+        cond = np.unique(labels)
+        score_vector = param['score_vector']
+        parameter_kernels = np.full((len(score_vector), len(scores_to_include), len(cond)), np.nan)
+
+        parameter_kernels = bf.get_parameter_kernels(scores_to_include, labels, cond, param, add_one=1)
+
+        # Get probability of each pair of being a match
+        probability = bf.apply_naive_bayes(parameter_kernels, priors, predictors, param, cond)
+
+        output_prob_matrix = probability[:, 1].reshape(param['n_units'], param['n_units'])
+
+        util.evaluate_output(output_prob_matrix, param, within_session, session_switch, match_threshold=thresh)
+
+        output_threshold = np.zeros_like(output_prob_matrix)
+        output_threshold[output_prob_matrix > thresh] = 1
+
+        matches = np.argwhere(output_threshold == 1)
+
+        num_units_l = len(good_units[0])
+
+        between_matches = []
+        for m in matches:
+            if m[0] < num_units_l < m[1]:
+                between_matches.append([m[0], m[1]])
+        between_matches = np.array(between_matches)
+        good_unit_ids = np.vstack(good_units)
+        left_inds, right_inds, left_labs, right_labs, out_right_inds = [], [], [], [], []
+        if len(between_matches) > 0:
+            left_inds = between_matches[:, 0].astype(int)
+            right_inds = between_matches[:, 1].astype(int)
+            left_labs = good_unit_ids[left_inds]
+            right_labs = good_unit_ids[right_inds]
+            out_right_inds = right_inds - num_units_l
+
+        return left_inds, out_right_inds, left_labs, right_labs, waveform[left_inds, :, :, 0], waveform[right_inds, :, :, 0]
+
+
+def run_deepunitmatch(fold0, fold1, only_good=True, thresh=0.5, use_bombcell=False, device="cpu"):
     channel_pos, waveform, session_id, session_switch, within_session, good_units, param = load_unitmatch(fold0, fold1,
                                                                                                           only_good,
                                                                                                           use_bombcell)
-    # param['peak_loc'] = #may need to set as a value if the peak location is NOT ~ half the spike width
 
-    # Create clus_info, contains all unit id/session related info
-    clus_info = {'good_units': good_units, 'session_switch': session_switch, 'session_id': session_id,
-                 'original_ids': np.concatenate(good_units)}
+    # Where to write/read DeepUnitMatch preprocessed HDF5s (creates `processed_waveforms/`)
+    save_path = os.path.join(fold0, 'TMP')  # Note, this folder will be removed between runs.
 
-    # STEP 1
-    # Extract parameters from waveform
-    extracted_wave_properties = ov.extract_parameters(waveform, channel_pos, clus_info, param)
+    # make sure RawWaveforms are of appropriate size when using our trained DeepUnitMatch model (spike_width 82, samples_before 20, samples_after 61)
 
-    # STEP 2, 3, 4
-    # Extract metric scores
-    total_score, candidate_pairs, scores_to_include, predictors = ov.extract_metric_scores(extracted_wave_properties,
-                                                                                           session_switch,
-                                                                                           within_session, param,
-                                                                                           niter=2)
+    # Preprocess the DeepUnitMatch way and save as HDF5 files for each session in 'processed_waveforms'.
 
-    # STEP 5
-    # Probability analysis
-    # Get prior probability of being a match
-    prior_match = 1 - (param['n_expected_matches'] / param['n_units'] ** 2)  # freedom of choose in prior prob
-    priors = np.array((prior_match, 1 - prior_match))
+    # save_path is defined in the "User inputs" cell above
+    unit_ids = np.concatenate(param["good_units"]).squeeze()  # cluster IDs in the same order as `waveform`
 
-    # Construct distributions (kernels) for Naive Bayes Classifier
-    labels = candidate_pairs.astype(int)
-    cond = np.unique(labels)
-    score_vector = param['score_vector']
-    parameter_kernels = np.full((len(score_vector), len(scores_to_include), len(cond)), np.nan)
+    snippets, positions = param_fun.get_snippets(waveform, channel_pos, session_id, save_path=save_path, unit_ids=unit_ids)
 
-    parameter_kernels = bf.get_parameter_kernels(scores_to_include, labels, cond, param, add_one=1)
+    # Load the neural net
+    model = test.load_trained_model(device=device)
 
-    # Get probability of each pair of being a match
-    probability = bf.apply_naive_bayes(parameter_kernels, priors, predictors, param, cond)
+    # We have stored the preprocessed data here (from the get_snippets function)
+    data_dir = os.path.join(save_path, 'processed_waveforms')
 
-    output_prob_matrix = probability[:, 1].reshape(param['n_units'], param['n_units'])
-    util.evaluate_output(output_prob_matrix, param, within_session, session_switch, match_threshold=thresh)
+    # Pass the preprocessed data through the neural net
+    sim_matrix = test.inference(model, data_dir) # n_sessions prevents more data to be loaded in from other runs
 
-    # match_threshold = param['match_threshold']
-    match_threshold = thresh
+    # Use the same Naive Bayes as in UnitMatchPy
 
-    output_threshold = np.zeros_like(output_prob_matrix)
-    output_threshold[output_prob_matrix > match_threshold] = 1
+    clus_info = {'good_units': param['good_units'], 'session_switch': session_switch, 'session_id': session_id,
+                 'original_ids': np.concatenate(param['good_units'])}
+    extracted_wave_properties = ov.extract_parameters(waveform, channel_pos, clus_info,
+                                                      param)  # contains spatial locations
+    within_session = 1 - (session_id[:, None] == session_id).astype(int)
+    sessions = np.unique(session_id)
+    match_dfs = []
+    probs = np.zeros(sim_matrix.shape)
+    distance_matrix = np.zeros(sim_matrix.shape)
+
+    for r1 in sessions:
+        for r2 in sessions:
+            if r1 >= r2:
+                continue
+
+            mask = np.isin(session_id, [r1, r2])
+            sim_mat = sim_matrix[mask][:, mask]
+            n = np.sum(mask)
+            n_units_r1 = session_switch[r1 + 1] - session_switch[r1]
+            n_units_r2 = session_switch[r2 + 1] - session_switch[r2]
+            session_switch_pair = np.array([0, n_units_r1, n_units_r1 + n_units_r2])
+
+            indices = np.where(np.isin(session_id, [r1, r2]))[0]
+            df = helpers.create_dataframe([param['good_units'][r1], param['good_units'][r2]], sim_mat,
+                                          session_list=[r1, r2])
+            matches = test.get_matches(df, sim_mat, session_id[indices], data_dir, dist_thresh=50)
+
+            labels = np.eye(sim_mat.shape[0])
+            subsessionid = np.array([r1] * len(param['good_units'][r1]) + [r2] * len(param['good_units'][r2]))
+            for (recses1, recses2), group in matches.groupby(by=['RecSes1', 'RecSes2']):
+                asmatrix = group['match'].values.reshape(len(param['good_units'][recses1]),
+                                                         len(param['good_units'][recses2])).astype(int)
+                labels[np.ix_(subsessionid == recses1, subsessionid == recses2)] = asmatrix
+
+
+            avg_centroid, avg_waveform_per_tp = extracted_wave_properties['avg_centroid'][:, mask, :], \
+            extracted_wave_properties['avg_waveform_per_tp'][:, mask, :, :]
+            avg_waveform_per_tp = mf.drift_correct_session_pair(labels.astype(bool), session_switch_pair, avg_centroid,
+                                                                avg_waveform_per_tp, 0, param)
+            avg_waveform_per_tp_flip = mf.flip_dim(avg_waveform_per_tp, param, n)
+            euclid_dist = mf.get_Euclidean_dist(avg_waveform_per_tp_flip, param, n)
+            centroid_dist, _ = mf.centroid_metrics(euclid_dist, param)
+
+            scores_to_incl = {
+                'similarity': sim_mat,
+                'distance': centroid_dist,
+            }
+
+            n_units = int(np.sqrt(len(df)))
+            priors = np.array([1 - 2 / n_units, 2 / n_units])
+            parameter_kernels = bf.get_parameter_kernels(scores_to_incl, labels, np.unique(labels), param)
+            predictors = np.stack([scores for scores in scores_to_incl.values()], axis=2)
+            probability = bf.apply_naive_bayes(parameter_kernels, priors, predictors, param, np.unique(labels))
+            prob_matrix = probability[:, 1].reshape(n_units, n_units)
+            # Debug: verify shapes match before assignment
+            target_shape = np.ix_(mask, mask)
+            target_rows = np.where(mask)[0]
+            if prob_matrix.shape != centroid_dist.shape:
+                print(
+                    f"  WARNING: Shape mismatch! prob_matrix={prob_matrix.shape} vs centroid_dist={centroid_dist.shape}")
+            probs[np.ix_(mask, mask)] = prob_matrix
+            distance_matrix[np.ix_(mask, mask)] = centroid_dist
+
+    util.evaluate_output(probs, param, within_session, session_switch, match_threshold=thresh)
+
+    # Process the output probability matrix to get final set of matches (across sessions)
+    # thresh is defined in the "User inputs" cell above
+    final_matches = test.directional_filter(probs, session_id, thresh)
+
+
+    # Divide final number of matches by 2 to account for double counting in the matrix
+    num_m = np.sum(final_matches) // 2
+    print(f" Found {num_m} matches in these sessions using the threshold of {thresh}.")
+
+    left_inds, right_inds, left_labs, right_labs, out_right_inds = [], [], [], [], []
 
     num_units_l = len(good_units[0])
-
-    matches = np.argwhere(output_threshold == 1)
+    matches = np.argwhere(final_matches)
 
     between_matches = []
     for m in matches:
         if m[0] < num_units_l < m[1]:
             between_matches.append([m[0], m[1]])
+
     between_matches = np.array(between_matches)
     good_unit_ids = np.vstack(good_units)
-    left_inds, right_inds, left_labs, right_labs = [], [], [], []
     if len(between_matches) > 0:
         left_inds = between_matches[:, 0].astype(int)
         right_inds = between_matches[:, 1].astype(int)
         left_labs = good_unit_ids[left_inds]
         right_labs = good_unit_ids[right_inds]
-        right_inds -= num_units_l
 
-    return left_inds, right_inds, left_labs, right_labs, waveform[left_inds, :, :, 0], waveform[right_inds, :, :, 1]
+        # Now we can check performance using the AUC. This tests the agreement between DeepUnitMatch matches and functional scores (in this case, ISI histogram correlations).
+        isicorr = test.ISI_correlations(param)
+        auc = test.AUC(final_matches, isicorr, session_id)
+        print(f"AUC for DeepUnitMatch matches: {auc:.3f}")
 
+        out_right_inds = right_inds - num_units_l
 
-# def run_DUM(fold0, fold1, only_good=True, thresh=0.75, use_bombcell=False, device="gpu"):
-#     channel_pos, waveform, session_id, session_switch, within_session, good_units, param = load_unitmatch(fold0, fold1,
-#                                                                                                           only_good,
-#                                                                                                           use_bombcell)
-#
-#     # Where to write/read DeepUnitMatch preprocessed HDF5s (creates `processed_waveforms/`)
-#     save_path = os.path.join(fold0, 'TMP')  # Note, this folder will be removed between runs.
-#
-#     # make sure RawWaveforms are of appropriate size when using our trained DeepUnitMatch model (spike_width 82, samples_before 20, samples_after 61)
-#
-#     # Preprocess the DeepUnitMatch way and save as HDF5 files for each session in 'processed_waveforms'.
-#
-#     # save_path is defined in the "User inputs" cell above
-#     unit_ids = np.concatenate(param["good_units"]).squeeze()  # cluster IDs in the same order as `waveform`
-#     snippets, positions = param_fun.get_snippets(waveform, channel_pos, session_id, save_path=save_path, unit_ids=unit_ids)
-#
-#     # Load the neural net
-#     model = test.load_trained_model(device=device)
-#
-#     # We have stored the preprocessed data here (from the get_snippets function)
-#     data_dir = os.path.join(save_path, 'processed_waveforms')
-#
-#     # Pass the preprocessed data through the neural net
-#     sim_matrix = test.inference(model, data_dir) # n_sessions prevents more data to be loaded in from other runs
-#
-#     # Use the same Naive Bayes as in UnitMatchPy
-#
-#     clus_info = {'good_units': param['good_units'], 'session_switch': session_switch, 'session_id': session_id,
-#                  'original_ids': np.concatenate(param['good_units'])}
-#     extracted_wave_properties = ov.extract_parameters(waveform, channel_pos, clus_info,
-#                                                       param)  # contains spatial locations
-#     within_session = 1 - (session_id[:, None] == session_id).astype(int)
-#     sessions = np.unique(session_id)
-#     match_dfs = []
-#     probs = np.zeros(sim_matrix.shape)
-#     distance_matrix = np.zeros(sim_matrix.shape)
-#
-#     for r1 in sessions:
-#         for r2 in sessions:
-#             if r1 >= r2:
-#                 continue
-#
-#             mask = np.isin(session_id, [r1, r2])
-#             sim_mat = sim_matrix[mask][:, mask]
-#             n = np.sum(mask)
-#             n_units_r1 = session_switch[r1 + 1] - session_switch[r1]
-#             n_units_r2 = session_switch[r2 + 1] - session_switch[r2]
-#             session_switch_pair = np.array([0, n_units_r1, n_units_r1 + n_units_r2])
-#
-#             indices = np.where(np.isin(session_id, [r1, r2]))[0]
-#             df = helpers.create_dataframe([param['good_units'][r1], param['good_units'][r2]], sim_mat,
-#                                           session_list=[r1, r2])
-#             matches = test.get_matches(df, sim_mat, session_id[indices], data_dir, dist_thresh=50)
-#
-#             labels = np.eye(sim_mat.shape[0])
-#             subsessionid = np.array([r1] * len(param['good_units'][r1]) + [r2] * len(param['good_units'][r2]))
-#             for (recses1, recses2), group in matches.groupby(by=['RecSes1', 'RecSes2']):
-#                 asmatrix = group['match'].values.reshape(len(param['good_units'][recses1]),
-#                                                          len(param['good_units'][recses2])).astype(int)
-#                 labels[np.ix_(subsessionid == recses1, subsessionid == recses2)] = asmatrix
-#
-#
-#             avg_centroid, avg_waveform_per_tp = extracted_wave_properties['avg_centroid'][:, mask, :], \
-#             extracted_wave_properties['avg_waveform_per_tp'][:, mask, :, :]
-#             avg_waveform_per_tp = mf.drift_correct_session_pair(labels.astype(bool), session_switch_pair, avg_centroid,
-#                                                                 avg_waveform_per_tp, 0, param)
-#             avg_waveform_per_tp_flip = mf.flip_dim(avg_waveform_per_tp, param, n)
-#             euclid_dist = mf.get_Euclidean_dist(avg_waveform_per_tp_flip, param, n)
-#             centroid_dist, _ = mf.centroid_metrics(euclid_dist, param)
-#
-#             scores_to_incl = {
-#                 'similarity': sim_mat,
-#                 'distance': centroid_dist,
-#             }
-#
-#             n_units = int(np.sqrt(len(df)))
-#             priors = np.array([1 - 2 / n_units, 2 / n_units])
-#             parameter_kernels = bf.get_parameter_kernels(scores_to_incl, labels, np.unique(labels), param)
-#             predictors = np.stack([scores for scores in scores_to_incl.values()], axis=2)
-#             probability = bf.apply_naive_bayes(parameter_kernels, priors, predictors, param, np.unique(labels))
-#             prob_matrix = probability[:, 1].reshape(n_units, n_units)
-#             # Debug: verify shapes match before assignment
-#             target_shape = np.ix_(mask, mask)
-#             target_rows = np.where(mask)[0]
-#             if prob_matrix.shape != centroid_dist.shape:
-#                 print(
-#                     f"  WARNING: Shape mismatch! prob_matrix={prob_matrix.shape} vs centroid_dist={centroid_dist.shape}")
-#             probs[np.ix_(mask, mask)] = prob_matrix
-#             distance_matrix[np.ix_(mask, mask)] = centroid_dist
-#
-#     util.evaluate_output(probs, param, within_session, session_switch, match_threshold=thresh)
-#
-#     # Process the output probability matrix to get final set of matches (across sessions)
-#     # thresh is defined in the "User inputs" cell above
-#     final_matches = test.directional_filter(probs, session_id, thresh)
-#
-#
-#     # Divide final number of matches by 2 to account for double counting in the matrix
-#     print(f" Found {np.sum(final_matches) // 2} matches in these sessions using the threshold of {thresh}.")
-#
-#     # Now we can check performance using the AUC. This tests the agreement between DeepUnitMatch matches and functional scores (in this case, ISI histogram correlations).
-#     isicorr = test.ISI_correlations(param)
-#     auc = test.AUC(final_matches, isicorr, session_id)
-#     print(f"AUC for DeepUnitMatch matches: {auc:.3f}")
-#
-#     num_units_l = len(good_units[0])
-#     good_unit_ids = np.vstack(good_units)
-#     left_inds, right_inds, left_labs, right_labs = [], [], [], []
-#     if len(final_matches) > 0:
-#         left_inds = final_matches[:, 0].astype(int)
-#         right_inds = final_matches[:, 1].astype(int)
-#         left_labs = good_unit_ids[left_inds]
-#         right_labs = good_unit_ids[right_inds]
-#         right_inds -= num_units_l
-#
-#     return left_inds, right_inds, left_labs, right_labs, waveform[left_inds, :, :, 0], waveform[right_inds, :, :, 1]
+    return left_inds, out_right_inds, left_labs, right_labs, waveform[left_inds, :, :, 0], waveform[right_inds, :, :, 0]
