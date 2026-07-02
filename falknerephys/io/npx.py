@@ -3,7 +3,7 @@ import os
 import numpy as np
 from kilosort.io import save_probe
 
-from falknerephys.io.spikesort import run_ks4
+from falknerephys.spikesort import run_ks4
 
 
 def read_onebox_bin(bin_file, num_chans=3, bytes_per_samp=2):

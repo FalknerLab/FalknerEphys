@@ -5,7 +5,7 @@ from nptdms import TdmsFile
 import h5py
 import matplotlib.pyplot as plt
 
-from falknerephys.io.spikesort import load_phy
+from falknerephys.spikesort import load_phy
 
 
 def import_wm_data(phy_path, yaml_file=None, ephys_start=0, ephys_hz=25000):

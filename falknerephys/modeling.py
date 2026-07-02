@@ -22,7 +22,7 @@ from scipy.stats import binned_statistic_dd, zscore
 from statsmodels.tsa.stattools import grangercausalitytests
 from umap import UMAP
 
-from falknerephys.preprocess import gaus_fr, spikes_to_timeseries, bin_spikes
+from falknerephys.spikesort import gaus_fr, spikes_to_timeseries, bin_spikes
 
 
 def uniform_sample(cat_data, max_samps=0, method='random'):

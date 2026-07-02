@@ -1,7 +1,7 @@
 import os
 import argparse
 
-from falknerephys.io.spikesort import run_ks4, run_bombcell, run_unitmatch, prep_raw_unitmatch
+from falknerephys.spikesort import run_ks4, run_bombcell, run_unitmatch, prep_raw_unitmatch
 
 
 def main():
@@ -43,7 +43,7 @@ def main():
         print_info()
 
     if args['brainreg'] is not None:
-        from falknerephys.io.register import register_probes
+        from falknerephys.register import register_probes
         json_file = None
         if len(args['brainreg']) == 2:
             json_file = args['brainreg'][1]
