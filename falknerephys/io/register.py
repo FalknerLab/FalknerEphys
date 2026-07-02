@@ -6,6 +6,7 @@ import re
 import cv2
 import numpy as np
 import tifffile as tiff
+from joblib import Parallel, delayed
 from scipy.ndimage import binary_dilation
 from scipy.spatial import distance_matrix
 from sklearn.cluster import AgglomerativeClustering
@@ -16,8 +17,6 @@ import matplotlib.pyplot as plt
 # from allensdk.core.mouse_connectivity_cache import MouseConnectivityCache
 import networkx as nx
 from networkx.algorithms.approximation.traveling_salesman import traveling_salesman_problem
-import requests
-import gzip
 
 
 def make_tiff_stack(root_fold, out_fold=None, tiff_prefix='braintiff', chans=None, scope='lv'):
@@ -328,7 +327,7 @@ def add_regions(region_list, brain=None, colors=None, alpha=0.25):
 
 
 def project_svg(brain=None, use_silhouette=False, slice_pos=5000, slice_axis='sag', save_file=None, ax=None,
-                show_brain=True, alph=0.7):
+                show_brain=True, alph=0.5):
     if brain is None:
         brain = Scene()
     if ax is None:
@@ -347,29 +346,68 @@ def project_svg(brain=None, use_silhouette=False, slice_pos=5000, slice_axis='sa
     org[ax_ind] = slice_pos
     sil_ax = ['x', 'y', 'z']
     pt_inds = [(1, 2), (0, 2), (0, 1)]
-    for a in brain.actors:
+    pt_inds_circ = [(1, 0), (2, 0), (2, 1)]
+
+    def plot_actor(a):
+        plot_type = None
+        pts = np.zeros((1, 2))
+        pt_cols = None
         if a.name != 'root' or show_brain:
             if use_silhouette:
                 splane = a.mesh.clone().project_on_plane(sil_ax[ax_ind])
             else:
-                try:
-                    splane = a.mesh.clone().slice(origin=org, normal=norm)
-                except:
-                    splane = None
+                if a.br_class == 'Circle':
+                    slice_ind = list({0, 1, 2} - set(pt_inds_circ[ax_ind]))[0]
+                    if a.center[slice_ind] != slice_pos:
+                        return plot_type, pts, pt_cols, a.br_class
+                    splane = a.mesh.clone()
+                else:
+                    try:
+                        splane = a.mesh.clone().slice(origin=org, normal=norm)
+                    except:
+                        splane = None
             if splane is not None:
                 if a.br_class == 'Volume':
                     pts = splane.vertices[:, [pt_inds[ax_ind][0], pt_inds[ax_ind][1]]]
                     pt_cols = splane.pointcolors / 255
-                    ax.scatter(pts[:, 0], pts[:, 1], c=pt_cols)
-                elif a.br_class == 'Point':
-                    pts = splane.coordinates[:, [pt_inds[ax_ind][0], pt_inds[ax_ind][1]]]
-                    clean_pts = make_shapes(pts)
-                    ax.fill(clean_pts[:, 0], clean_pts[:, 1], c=a.color(), alpha=alph, linewidth=0)
+                    plot_type = 'scatter'
                 else:
-                    splane = splane.boundaries()
-                    pts = splane.coordinates[:, [pt_inds[ax_ind][0], pt_inds[ax_ind][1]]]
-                    clean_pts = make_shapes(pts)
-                    ax.plot(clean_pts[:, 0], clean_pts[:, 1], 'k')
+                    pt_cols = a.color()
+                    plot_type = 'fill'
+                    if a.br_class == 'Point':
+                        pts = splane.coordinates[:, [pt_inds[ax_ind][0], pt_inds[ax_ind][1]]]
+                    elif a.br_class == 'Circle':
+                        pts = splane.coordinates[:, [pt_inds_circ[ax_ind][0], pt_inds_circ[ax_ind][1]]]
+                    else:
+                        # splane = splane.boundaries()
+                        pts = splane.coordinates[:, [pt_inds[ax_ind][0], pt_inds[ax_ind][1]]]
+                        plot_type = 'plot'
+        return plot_type, pts, pt_cols, a.name
+
+    things = []
+    for a in brain.actors:
+        things.append(plot_actor(a))
+
+    def clean_pts(plt_type, pts, name):
+        clean_out = pts
+        if plt_type != 'scatter' and plt_type is not None:
+            try:
+                clean_out = make_shapes(pts)
+            except:
+                clean_out = pts
+        return clean_out
+
+    results = Parallel(n_jobs=-1)(delayed(clean_pts)(t[0], t[1], t[3]) for t in things)
+
+    for p, r in zip(things, results):
+        match p[0]:
+            case 'scatter':
+                ax.scatter(r[:, 0], r[:, 1], c=p[2])
+            case 'fill':
+                ax.fill(r[:, 0], r[:, 1], c=p[2], alpha=alph, linewidth=0)
+            case 'plot':
+                ax.plot(r[:, 0], r[:, 1], 'k')
+
     if save_file is not None:
         plt.savefig(save_file)
     return ax
