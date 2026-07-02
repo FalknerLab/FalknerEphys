@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from joblib import Parallel, delayed
 from matplotlib.patches import Circle
 from debugpy.common.log import warning
 from scipy.cluster import hierarchy
@@ -22,6 +21,10 @@ def fempl_style():
     mpl.rcParams['axes.spines.top'] = False
     mpl.rcParams['grid.linestyle'] = ':'
     plt.rcParams['savefig.dpi'] = 600
+    plt.rcParams['axes3d.xaxis.panecolor'] = (1.0, 1.0, 1.0, 0.0)
+    plt.rcParams['axes3d.yaxis.panecolor'] = (1.0, 1.0, 1.0, 0.0)
+    plt.rcParams['axes3d.zaxis.panecolor'] = (1.0, 1.0, 1.0, 0.0)
+    plt.rcParams['axes.grid'] = False
 
 
 def jitter_plot(spk_s, ax=None):
@@ -231,19 +234,17 @@ def ternary(vals, ax=None):
         print(vals)
 
 
-def plot_waveforms(wf_mat, ax=None, c_pad=5):
+def plot_waveforms(wf_mat, chan_pos, ax=None, col='k'):
     if ax is None:
         f, ax = plt.subplots(1, 1)
-
-    n_chans = np.shape(wf_mat)[1]
-    pk_chan = np.argmin(np.min(wf_mat, axis=0))
     norm_wf = wf_mat / np.max(np.max(np.abs(wf_mat)))
-    ax.plot(norm_wf + np.arange(n_chans), c='k')
-    ax.set_yticks(np.arange(n_chans))
-    ax.set_ylim(pk_chan-c_pad-0.5, pk_chan+c_pad+0.5)
+    x = np.linspace(chan_pos[:, 0], chan_pos[:, 0]+75, len(wf_mat))
+    y = chan_pos[:, 1] + 10*norm_wf
+    good_ts = np.where(np.min(norm_wf, axis=0) < -0.35)[0]
+    ax.plot(x[:, good_ts], y[:, good_ts], color=col)
 
 
-def plot_glm(feature_weights, model_r2s, labels=None, num_gmm_comp=-1, r2_thresh=0.025, max_c=15, sort_method='gmm'):
+def plot_glm(feature_weights, model_r2s, labels=None, num_gmm_comp=-1, r2_thresh=0.0, max_c=15, sort_method='gmm'):
     feature_weights = feature_weights[model_r2s > r2_thresh, :]
     model_r2s = model_r2s[model_r2s > r2_thresh]
     bics = []
@@ -276,3 +277,18 @@ def plot_glm(feature_weights, model_r2s, labels=None, num_gmm_comp=-1, r2_thresh
 
     return clus_num, sort_ord
 
+
+def plot_confusion_matrix(conf_mat, class_names=None, axs=None, cmap='OrRd', vmin=0, vmax=1):
+    if axs is None:
+        f, axs = plt.subplots(1, 2, gridspec_kw={'width_ratios': [5, 1]})
+
+
+    cm_im = axs[0].imshow(conf_mat, cmap=cmap, vmin=vmin, vmax=vmax, origin='lower')
+
+    if class_names is not None:
+        axs[0].set_yticks(np.arange(len(class_names)), class_names)
+        axs[0].set_xticks(np.arange(len(class_names)), class_names)
+
+    plt.colorbar(mappable=cm_im, cax=axs[1], label='Recall')
+
+    return cm_im
