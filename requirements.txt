@@ -1,4 +1,4 @@
-UnitMatch @ https://github.com/EnnyvanBeest/UnitMatch.git
+UnitMatch @ git+https://github.com/EnnyvanBeest/UnitMatch.git
 numpy
 nptdms
 matplotlib
