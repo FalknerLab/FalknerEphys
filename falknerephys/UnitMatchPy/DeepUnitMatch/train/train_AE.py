@@ -9,10 +9,10 @@ from torch.utils.tensorboard  import SummaryWriter
 from pathlib import Path
 import subprocess
 
-from utils import metric
-from utils.AE_npdataset import AE_NeuropixelsDataset_cortexlab
-from utils.losses import AELoss
-from utils.mymodel import *
+from ..utils import metric
+from ..utils.AE_npdataset import AE_NeuropixelsDataset_cortexlab
+from ..utils.losses import AELoss
+from ..utils.mymodel import *
 
 
 logger = logging.getLogger(__name__)

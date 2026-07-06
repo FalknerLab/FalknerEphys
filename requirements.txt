@@ -1,4 +1,7 @@
 mat73
+mtscomp
+tqdm
+torch
 numpy
 nptdms
 matplotlib

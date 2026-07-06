@@ -4,7 +4,7 @@ import random
 import numpy as np
 import h5py
 from torch.utils.data import Dataset, Sampler
-from utils.helpers import get_unit_id
+from ..utils.helpers import get_unit_id
 
 
 def _load_good_unit_ids_from_labels(session_dir: str):

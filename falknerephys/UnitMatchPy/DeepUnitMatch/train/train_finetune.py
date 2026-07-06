@@ -10,10 +10,10 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard  import SummaryWriter
 from pathlib import Path
 
-from utils import metric
-from utils.losses import *
-from utils.npdataset import NeuropixelsDataset_cortexlab, TrainExperimentBatchSampler, ValidationExperimentBatchSampler
-from utils.mymodel import *
+from ..utils import metric
+from ..utils.losses import *
+from ..utils.npdataset import NeuropixelsDataset_cortexlab, TrainExperimentBatchSampler, ValidationExperimentBatchSampler
+from ..utils.mymodel import *
 
 logger = logging.getLogger(__name__)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

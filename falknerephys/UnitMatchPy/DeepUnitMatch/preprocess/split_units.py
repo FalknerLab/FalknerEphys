@@ -5,8 +5,8 @@ import h5py
 sys.path.insert(0, os.getcwd())
 sys.path.insert(0, os.path.dirname(os.getcwd()))
 sys.path.insert(0, os.path.join(os.path.dirname(os.getcwd()), "DeepUnitMatch"))
-from testing.test import inference, get_threshold, directional_filter_df
-from utils.helpers import create_dataframe
+from ..testing.test import inference, get_threshold, directional_filter_df
+from ..utils.helpers import create_dataframe
 
 
 def merge_split_unit(row, spk_df:pd.DataFrame, data_dir):

@@ -5,12 +5,12 @@ from pathlib import Path
 # importable regardless of the caller's working directory.
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.losses import clip_sim, CustomClipLoss, Projector
-from utils.npdataset import NeuropixelsDataset_cortexlab, ValidationExperimentBatchSampler
-from utils.helpers import read_pos
+from ..utils.losses import clip_sim, CustomClipLoss, Projector
+from ..utils.npdataset import NeuropixelsDataset_cortexlab, ValidationExperimentBatchSampler
+from ..utils.helpers import read_pos
 import numpy as np
 import matplotlib.pyplot as plt
-from utils.mymodel import SpatioTemporalCNN_V2
+from ..utils.mymodel import SpatioTemporalCNN_V2
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -18,9 +18,9 @@ import pandas as pd
 from sklearn.neighbors import KernelDensity
 from scipy.optimize import linear_sum_assignment
 import importlib
-from utils import helpers
+from ..utils import helpers
 importlib.reload(helpers)
-from utils.helpers import *
+from ..utils.helpers import *
 
 
 def _parse_unitmatch_good_units(unit_label_paths):

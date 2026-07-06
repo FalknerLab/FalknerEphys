@@ -3,7 +3,7 @@ import random
 import numpy as np
 import h5py
 from torch.utils.data import Dataset
-from DeepUnitMatch.utils.train_utils import read_good_ids
+from ..utils.train_utils import read_good_ids
 
 
 class AE_NeuropixelsDataset(Dataset):
