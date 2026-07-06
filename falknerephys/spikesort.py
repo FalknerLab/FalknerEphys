@@ -7,14 +7,14 @@ from kilosort import run_kilosort
 from kilosort.io import load_probe, save_to_phy
 import matplotlib.pyplot as plt
 from tkfilebrowser import askopenfilename, askopendirnames
-import UnitMatchPy.extract_raw_data as erd
-import UnitMatchPy.bayes_functions as bf
-import UnitMatchPy.utils as util
-import UnitMatchPy.overlord as ov
-import UnitMatchPy.default_params as default_params
-from UnitMatchPy.DeepUnitMatch.utils import param_fun, helpers
-from UnitMatchPy.DeepUnitMatch.testing import test
-import UnitMatchPy.metric_functions as mf
+import falknerephys.UnitMatchPy.extract_raw_data as erd
+import falknerephys.UnitMatchPy.bayes_functions as bf
+import falknerephys.UnitMatchPy.utils as util
+import falknerephys.UnitMatchPy.overlord as ov
+import falknerephys.UnitMatchPy.default_params as default_params
+from falknerephys.UnitMatchPy.DeepUnitMatch.utils import param_fun, helpers
+from falknerephys.UnitMatchPy.DeepUnitMatch.testing import test
+import falknerephys.UnitMatchPy.metric_functions as mf
 from joblib import Parallel, delayed
 
 from falknerephys.plotting import venn2
