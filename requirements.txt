@@ -1,4 +1,4 @@
-UnitMatchPy @ git+https://github.com/EnnyvanBeest/UnitMatch.git@55c16f0#subdirectory=UnitMatchPy
+UnitMatchPy @ git+https://github.com/EnnyvanBeest/UnitMatch.git@74d684c#subdirectory=UnitMatchPy
 mat73
 numpy
 nptdms

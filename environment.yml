@@ -1,7 +1,7 @@
 name: FalknerEphys
 
 dependencies:
-  - python>=3.9
+  - python<=3.12.13
   - pip
   - pip:
       - -e .
