@@ -391,7 +391,23 @@ def run_deepunitmatch(fold0, fold1, only_good=True, thresh=0.5, use_bombcell=Fal
     # save_path is defined in the "User inputs" cell above
     unit_ids = np.concatenate(param["good_units"]).squeeze()  # cluster IDs in the same order as `waveform`
 
-    snippets, positions = param_fun.get_snippets(waveform, channel_pos, session_id, save_path=save_path, unit_ids=unit_ids)
+    snippets, positions, kept_idx = param_fun.get_snippets(
+        waveform,
+        channel_pos,
+        session_id,
+        save_path=save_path,
+        unit_ids=unit_ids,
+        param=param,
+    )
+
+    # If any units were rejected (bad waveform shape), re-sync all per-unit arrays so that
+    # waveform, session_id, session_switch and good_units all match the saved HDF5 files.
+    if len(kept_idx) < len(waveform):
+        waveform, session_id, session_switch, within_session, good_units, param = (
+            util.filter_units_by_index(
+                waveform, session_id, session_switch, good_units, kept_idx, param
+            )
+        )
 
     # Load the neural net
     model = test.load_trained_model(device=device)
