@@ -382,7 +382,7 @@ def run_deepunitmatch(fold0, fold1, only_good=True, thresh=0.5, use_bombcell=Fal
                                                                                                           use_bombcell)
 
     # Where to write/read DeepUnitMatch preprocessed HDF5s (creates `processed_waveforms/`)
-    save_path = os.path.join(fold0, 'TMP')  # Note, this folder will be removed between runs.
+    tmp_path = os.path.join(fold0, 'TMP')  # Note, this folder will be removed between runs.
 
     # make sure RawWaveforms are of appropriate size when using our trained DeepUnitMatch model (spike_width 82, samples_before 20, samples_after 61)
 
@@ -395,7 +395,7 @@ def run_deepunitmatch(fold0, fold1, only_good=True, thresh=0.5, use_bombcell=Fal
         waveform,
         channel_pos,
         session_id,
-        save_path=save_path,
+        save_path=tmp_path,
         unit_ids=unit_ids,
         param=param,
     )
@@ -413,7 +413,7 @@ def run_deepunitmatch(fold0, fold1, only_good=True, thresh=0.5, use_bombcell=Fal
     model = test.load_trained_model(device=device)
 
     # We have stored the preprocessed data here (from the get_snippets function)
-    data_dir = os.path.join(fold0, 'processed_waveforms')
+    data_dir = os.path.join(tmp_path, 'processed_waveforms')
 
     # Pass the preprocessed data through the neural net
     sim_matrix = test.inference(model, data_dir) # n_sessions prevents more data to be loaded in from other runs
