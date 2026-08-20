@@ -1,5 +1,8 @@
-import param_functions as pf
-import metric_functions as mf
+from param_functions import (detrend_waveform, get_max_sites, decay_and_average_waveform, get_amplitude_shift_waveform,
+                             get_avg_waveform_per_tp)
+from metric_functions import (get_simple_metric, get_wave_corr, get_waveforms_mse, flip_dim,
+                              get_euclidean_metrics_chunked, get_recentered_metrics_chunked, dist_angle,
+                              get_total_score, get_threshold, drift_n_sessions)
 import numpy as np
 
 def extract_parameters(waveform, channel_pos, clus_info, param):
@@ -22,15 +25,15 @@ def extract_parameters(waveform, channel_pos, clus_info, param):
     dict
         The extracted waveform properties as a dictionary of arrays
     """
-    waveform = pf.detrend_waveform(waveform)
+    waveform = detrend_waveform(waveform)
 
-    max_site, good_idx, good_pos, max_site_mean = pf.get_max_sites(waveform, channel_pos, clus_info, param)
+    max_site, good_idx, good_pos, max_site_mean = get_max_sites(waveform, channel_pos, clus_info, param)
 
-    spatial_decay_fit , spatial_decay,  d_10, avg_centroid, avg_waveform, peak_time = pf.decay_and_average_waveform(waveform, channel_pos, good_idx, max_site, max_site_mean, clus_info, param)
+    spatial_decay_fit , spatial_decay,  d_10, avg_centroid, avg_waveform, peak_time = decay_and_average_waveform(waveform, channel_pos, good_idx, max_site, max_site_mean, clus_info, param)
 
-    amplitude, waveform, avg_waveform = pf.get_amplitude_shift_waveform(waveform, avg_waveform, peak_time, param)
+    amplitude, waveform, avg_waveform = get_amplitude_shift_waveform(waveform, avg_waveform, peak_time, param)
 
-    waveform_duration, avg_waveform_per_tp, good_wave_idxs = pf.get_avg_waveform_per_tp(waveform,channel_pos, d_10, max_site_mean, amplitude, avg_waveform, clus_info, param)
+    waveform_duration, avg_waveform_per_tp, good_wave_idxs = get_avg_waveform_per_tp(waveform,channel_pos, d_10, max_site_mean, amplitude, avg_waveform, clus_info, param)
 
     extracted_wave_properties = {'spatial_decay_fit' : spatial_decay_fit, 'spatial_decay' : spatial_decay , 'avg_centroid' : avg_centroid,
                                 'waveform_duration' : waveform_duration, 'avg_waveform_per_tp' : avg_waveform_per_tp, 'good_wave_idxs' : good_wave_idxs,
@@ -74,23 +77,23 @@ def extract_metric_scores(extracted_wave_properties, session_switch, within_sess
     avg_centroid = extracted_wave_properties['avg_centroid']
 
     #These scores are NOT effected by the drift correction
-    amp_score = mf.get_simple_metric(amplitude)
-    spatial_decay_score = mf.get_simple_metric(spatial_decay)
-    spatial_decay_fit_score = mf.get_simple_metric(spatial_decay_fit, outlier = True)
-    wave_corr_score = mf.get_wave_corr(avg_waveform, param)
-    wave_mse_score = mf.get_waveforms_mse(avg_waveform, param)
+    amp_score = get_simple_metric(amplitude)
+    spatial_decay_score = get_simple_metric(spatial_decay)
+    spatial_decay_fit_score = get_simple_metric(spatial_decay_fit, outlier = True)
+    wave_corr_score = get_wave_corr(avg_waveform, param)
+    wave_mse_score = get_waveforms_mse(avg_waveform, param)
 
     #effected by drift
     for i in range(niter):
-        avg_waveform_per_tp_flip = mf.flip_dim(avg_waveform_per_tp, param)
+        avg_waveform_per_tp_flip = flip_dim(avg_waveform_per_tp, param)
 
-        centroid_dist, centroid_var, euclid_dist = mf.get_euclidean_metrics_chunked(
+        centroid_dist, centroid_var, euclid_dist = get_euclidean_metrics_chunked(
             avg_waveform_per_tp_flip, param)
 
-        centroid_dist_recentered = mf.get_recentered_metrics_chunked(
+        centroid_dist_recentered = get_recentered_metrics_chunked(
             avg_waveform_per_tp_flip, avg_centroid, param)
 
-        traj_angle_score, traj_dist_score = mf.dist_angle(avg_waveform_per_tp_flip, param)
+        traj_angle_score, traj_dist_score = dist_angle(avg_waveform_per_tp_flip, param)
 
         # TotalScore
         include_these_pairs = np.argwhere( euclid_dist < param['max_dist']) #array indices of pairs to include
@@ -109,20 +112,20 @@ def extract_metric_scores(extracted_wave_properties, session_switch, within_sess
             for key in to_exclude:
                 scores_to_include.pop(key, None)
         
-        total_score, predictors = mf.get_total_score(scores_to_include, param)
+        total_score, predictors = get_total_score(scores_to_include, param)
 
         #Initial thresholding
         if (i < niter - 1):
             #get the thershold for a match
-            thrs_opt = mf.get_threshold(total_score, within_session, euclid_dist, param, is_first_pass = True)
+            thrs_opt = get_threshold(total_score, within_session, euclid_dist, param, is_first_pass = True)
 
             param['n_expected_matches'] = np.sum( (total_score > thrs_opt).astype(int))
             prior_match = 1 - ( param['n_expected_matches'] / len(include_these_pairs))
             candidate_pairs = total_score > thrs_opt
 
-            drifts, avg_centroid, avg_waveform_per_tp = mf.drift_n_sessions(candidate_pairs, session_switch, avg_centroid, avg_waveform_per_tp, total_score, param)
+            drifts, avg_centroid, avg_waveform_per_tp = drift_n_sessions(candidate_pairs, session_switch, avg_centroid, avg_waveform_per_tp, total_score, param)
 
-    thrs_opt = mf.get_threshold(total_score, within_session, euclid_dist, param, is_first_pass = False)
+    thrs_opt = get_threshold(total_score, within_session, euclid_dist, param, is_first_pass = False)
     param['n_expected_matches'] = np.sum( (total_score > thrs_opt).astype(int))
     prior_match = 1 - ( param['n_expected_matches'] / len(include_these_pairs))
     thrs_opt = np.quantile(total_score[include_these_pairs_idx.astype(bool)], prior_match)

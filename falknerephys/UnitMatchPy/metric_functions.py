@@ -1,5 +1,5 @@
 import numpy as np
-import param_functions as pf
+from param_functions import smooth
 
 def re_scale(vector):
     """
@@ -584,8 +584,8 @@ def get_threshold(total_score, within_session, euclid_dist, param, is_first_pass
     else:
         hp = hp / hp_denom
 
-    hd_s = pf.smooth(hd, 3)
-    hnd_s = pf.smooth(hnd, 3)
+    hd_s = smooth(hd, 3)
+    hnd_s = smooth(hnd, 3)
 
     # Guard against edge cases where the histograms (or their normalisations) yield no crossing.
     min_len = min(score_vector.shape[0], hd_s.shape[0], hnd_s.shape[0])

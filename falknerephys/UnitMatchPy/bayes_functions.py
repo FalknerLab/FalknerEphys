@@ -1,5 +1,5 @@
 import numpy as np
-import param_functions as pf
+from param_functions import smooth
 
 def get_parameter_kernels(scores_to_include, labels, cond, param, add_one = 1):
     """
@@ -42,7 +42,7 @@ def get_parameter_kernels(scores_to_include, labels, cond, param, add_one = 1):
 
         for ck in range(len(cond)):           
             hist_tmp , __ = np.histogram(scores_tmp[labels == ck], bins)
-            parameter_kernels[:,score_id, ck] = pf.smooth(hist_tmp, smooth_tmp)
+            parameter_kernels[:,score_id, ck] = smooth(hist_tmp, smooth_tmp)
             parameter_kernels[:,score_id, ck] /= np.sum(parameter_kernels[:,score_id,ck])
             parameter_kernels[:,score_id, ck] += add_one* np.min(parameter_kernels[parameter_kernels[:,score_id, ck] !=0, score_id, ck], axis = 0)
 
