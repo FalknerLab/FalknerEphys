@@ -413,7 +413,7 @@ def run_deepunitmatch(fold0, fold1, only_good=True, thresh=0.5, use_bombcell=Fal
     model = test.load_trained_model(device=device)
 
     # We have stored the preprocessed data here (from the get_snippets function)
-    data_dir = os.path.join(save_path, 'processed_waveforms')
+    data_dir = os.path.join(fold0, 'processed_waveforms')
 
     # Pass the preprocessed data through the neural net
     sim_matrix = test.inference(model, data_dir) # n_sessions prevents more data to be loaded in from other runs
