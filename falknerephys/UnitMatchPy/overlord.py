@@ -1,5 +1,5 @@
-import UnitMatchPy.param_functions as pf
-import UnitMatchPy.metric_functions as mf
+import param_functions as pf
+import metric_functions as mf
 import numpy as np
 
 def extract_parameters(waveform, channel_pos, clus_info, param):

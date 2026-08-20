@@ -1,5 +1,5 @@
 import numpy as np
-import UnitMatchPy.param_functions as pf
+import param_functions as pf
 
 def re_scale(vector):
     """

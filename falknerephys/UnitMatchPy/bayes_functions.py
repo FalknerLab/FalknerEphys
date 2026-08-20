@@ -1,5 +1,5 @@
 import numpy as np
-import UnitMatchPy.param_functions as pf
+import param_functions as pf
 
 def get_parameter_kernels(scores_to_include, labels, cond, param, add_one = 1):
     """
