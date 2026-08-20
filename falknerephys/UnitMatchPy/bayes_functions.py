@@ -1,5 +1,5 @@
 import numpy as np
-from param_functions import smooth
+from falknerephys.UnitMatchPy.param_functions import smooth
 
 def get_parameter_kernels(scores_to_include, labels, cond, param, add_one = 1):
     """

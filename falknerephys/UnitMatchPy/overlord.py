@@ -1,6 +1,6 @@
-from param_functions import (detrend_waveform, get_max_sites, decay_and_average_waveform, get_amplitude_shift_waveform,
+from falknerephys.UnitMatchPy.param_functions import (detrend_waveform, get_max_sites, decay_and_average_waveform, get_amplitude_shift_waveform,
                              get_avg_waveform_per_tp)
-from metric_functions import (get_simple_metric, get_wave_corr, get_waveforms_mse, flip_dim,
+from falknerephys.UnitMatchPy.metric_functions import (get_simple_metric, get_wave_corr, get_waveforms_mse, flip_dim,
                               get_euclidean_metrics_chunked, get_recentered_metrics_chunked, dist_angle,
                               get_total_score, get_threshold, drift_n_sessions)
 import numpy as np

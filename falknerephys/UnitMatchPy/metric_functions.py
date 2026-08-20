@@ -1,5 +1,5 @@
 import numpy as np
-from param_functions import smooth
+from falknerephys.UnitMatchPy.param_functions import smooth
 
 def re_scale(vector):
     """

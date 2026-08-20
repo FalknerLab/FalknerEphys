@@ -7,12 +7,12 @@ import os, sys
 sys.path.insert(0, os.path.dirname(os.getcwd()))
 sys.path.insert(0, os.getcwd())
 sys.path.insert(0, os.path.join(os.path.dirname(os.getcwd()), 'UnitMatchPy'))
-from bayes_functions import get_parameter_kernels, apply_naive_bayes
-from utils import (create_robust_db_connection, retry_db_operation, paths_from_KS, get_probe_geometry,
+from falknerephys.UnitMatchPy.bayes_functions import get_parameter_kernels, apply_naive_bayes
+from falknerephys.UnitMatchPy.utils import (create_robust_db_connection, retry_db_operation, paths_from_KS, get_probe_geometry,
                    load_good_waveforms, filter_good_units_and_merge, add_col_to_sql, read_datapaths, get_valid_locations)
-from overlord import extract_parameters, extract_metric_scores
+from falknerephys.UnitMatchPy.overlord import extract_parameters, extract_metric_scores
 import numpy as np
-from default_params import get_default_param
+from falknerephys.UnitMatchPy.default_params import get_default_param
 from concurrent.futures import ProcessPoolExecutor
 import pandas as pd
 
