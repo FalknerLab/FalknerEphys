@@ -99,8 +99,8 @@ def make_design_matrix(behav_mat, pred_type=None, fs=30, time_width_ms=250):
     return design_mat
 
 
-def run_reg_decoder(x_data, target_vars, model='glm', k=5, categorical=False, test_inds=None, stratify=False,
-                    test_stat='mse', max_iter=1000):
+def run_reg_decoder(x_data, target_vars, model='glm', k=5, categorical=False, train_inds=None, test_inds=None,
+                    stratify=False, test_stat='mse', max_iter=1000):
     if test_inds is None:
         if stratify:
             train_input, test_input, train_output, test_output = train_test_split(x_data, target_vars, test_size=0.2,
@@ -113,6 +113,10 @@ def run_reg_decoder(x_data, target_vars, model='glm', k=5, categorical=False, te
         test_output = target_vars[test_inds]
         train_input = np.delete(x_data, test_inds, axis=0)
         train_output = np.delete(target_vars, test_inds, axis=0)
+    if train_inds is not None:
+        train_input = x_data[train_inds]
+        train_output = target_vars[train_inds]
+
     model_obj = None
     if type(model) == str:
         if model == 'svm':
