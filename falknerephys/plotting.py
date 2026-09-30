@@ -279,7 +279,7 @@ def plot_glm(feature_weights, model_r2s, labels=None, n_clusters=-1, r2_thresh=0
     ax[1].stem(model_r2s[sort_ord], orientation='horizontal')
     ax[1].set_ylim(-0.5, len(model_r2s) - 0.5)
 
-    if sort_method in ['gmm', 'kmeans']:
+    if sort_method in ['gmm', 'kmeans'] and n_clusters < 0:
         plt.figure()
         plt.plot(np.arange(1, max_c), bics, 'ko--')
 
