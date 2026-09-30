@@ -6,7 +6,7 @@ from matplotlib.colors import to_rgb
 from debugpy.common.log import warning
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import pdist
-from sklearn.cluster import AgglomerativeClustering
+from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.mixture import GaussianMixture
 
 
@@ -245,30 +245,37 @@ def plot_waveforms(wf_mat, chan_pos, ax=None, col='k'):
     ax.plot(x[:, good_ts], y[:, good_ts], color=col)
 
 
-def plot_glm(feature_weights, model_r2s, labels=None, num_gmm_comp=-1, r2_thresh=0.0, max_c=15, sort_method='gmm'):
+def plot_glm(feature_weights, model_r2s, labels=None, n_clusters=-1, r2_thresh=0.0, max_c=15, sort_method='gmm'):
     feature_weights = feature_weights[model_r2s > r2_thresh, :]
     model_r2s = model_r2s[model_r2s > r2_thresh]
     bics = []
     clus_num = np.zeros_like(model_r2s)
     if sort_method == 'gmm':
-        if num_gmm_comp < 0:
+        if n_clusters < 0:
             for c in range(1, max_c):
                 test_gmm = GaussianMixture(n_components=c)
                 test_gmm.fit(feature_weights)
                 bics.append(test_gmm.bic(feature_weights))
-            num_gmm_comp = np.argmin(np.array(bics)) + 1
-        clus_num = GaussianMixture(n_components=num_gmm_comp).fit_predict(feature_weights)
+            n_clusters = np.argmin(np.array(bics)) + 1
+        clus_num = GaussianMixture(n_components=n_clusters).fit_predict(feature_weights)
     if sort_method == 'max':
         clus_num = np.argmax(feature_weights, axis=1)
     if sort_method == 'agg':
-        clus_num = AgglomerativeClustering(num_gmm_comp).fit_predict(feature_weights)
+        clus_num = AgglomerativeClustering(n_clusters).fit_predict(feature_weights)
+    if sort_method == 'kmeans':
+        if n_clusters < 0:
+            for c in range(1, max_c):
+                knn_intertia = KMeans(n_clusters=c).fit(feature_weights).inertia_
+                bics.append(knn_intertia)
+            n_clusters = np.argmin(np.array(bics)) + 1
+        clus_num = KMeans(n_clusters=n_clusters).fit_predict(feature_weights)
     sort_ord = np.argsort(clus_num)
     f, ax = plt.subplots(1, 2)
     ax[0].pcolor(feature_weights[sort_ord, :])
     if labels is not None:
         ax[0].set_xticks(np.arange(len(labels)) + 0.5, labels)
         ax[0].tick_params(axis='x', labelrotation=90)
-    ax[0].set_title(f'Feature Weights n_clusters = {num_gmm_comp}')
+    ax[0].set_title(f'Feature Weights n_clusters = {n_clusters}')
     ax[1].stem(model_r2s[sort_ord], orientation='horizontal')
     ax[1].set_ylim(-0.5, len(model_r2s) - 0.5)
 
