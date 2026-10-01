@@ -250,13 +250,14 @@ def plot_glm(feature_weights, model_r2s, labels=None, n_clusters=-1, r2_thresh=0
     model_r2s = model_r2s[model_r2s > r2_thresh]
     bics = []
     clus_num = np.zeros_like(model_r2s)
+    fit_n_clus = n_clusters
     if sort_method == 'gmm':
         if n_clusters < 0:
             for c in range(1, max_c):
                 test_gmm = GaussianMixture(n_components=c)
                 test_gmm.fit(feature_weights)
                 bics.append(test_gmm.bic(feature_weights))
-            n_clusters = np.argmin(np.array(bics)) + 1
+            fit_n_clus = np.argmin(np.array(bics)) + 1
         clus_num = GaussianMixture(n_components=n_clusters).fit_predict(feature_weights)
     if sort_method == 'max':
         clus_num = np.argmax(feature_weights, axis=1)
@@ -267,15 +268,15 @@ def plot_glm(feature_weights, model_r2s, labels=None, n_clusters=-1, r2_thresh=0
             for c in range(1, max_c):
                 knn_intertia = KMeans(n_clusters=c).fit(feature_weights).inertia_
                 bics.append(knn_intertia)
-            n_clusters = np.argmin(np.array(bics)) + 1
-        clus_num = KMeans(n_clusters=n_clusters).fit_predict(feature_weights)
+            fit_n_clus = np.argmin(np.array(bics)) + 1
+        clus_num = KMeans(n_clusters=fit_n_clus).fit_predict(feature_weights)
     sort_ord = np.argsort(clus_num)
     f, ax = plt.subplots(1, 2)
     ax[0].pcolor(feature_weights[sort_ord, :])
     if labels is not None:
         ax[0].set_xticks(np.arange(len(labels)) + 0.5, labels)
         ax[0].tick_params(axis='x', labelrotation=90)
-    ax[0].set_title(f'Feature Weights n_clusters = {n_clusters}')
+    ax[0].set_title(f'Feature Weights n_clusters = {fit_n_clus}')
     ax[1].stem(model_r2s[sort_ord], orientation='horizontal')
     ax[1].set_ylim(-0.5, len(model_r2s) - 0.5)
 
