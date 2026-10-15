@@ -396,7 +396,7 @@ def get_avg_waveform_per_tp(waveform, channel_pos, d_10, max_site_mean, amplitud
 
             if wave_duration_tmp.sum != 0:
                 try:
-                    wave_duration_tmp = np.arange(wave_duration_tmp[0],wave_duration_tmp[-1]+1) + waveidx[0]  
+                    wave_duration_tmp = np.arange(wave_duration_tmp[0][0],wave_duration_tmp[-1][0]+1) + waveidx[0]
                     wave_duration_tmp = np.expand_dims(wave_duration_tmp, axis = 1)
                     waveform_duration[i,cv] = len(wave_duration_tmp) 
                 except:
