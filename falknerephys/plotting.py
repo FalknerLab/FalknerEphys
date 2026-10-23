@@ -271,7 +271,7 @@ def plot_glm(feature_weights, model_r2s, labels=None, n_clusters=-1, r2_thresh=0
             fit_n_clus = np.argmin(np.array(bics)) + 1
         clus_num = KMeans(n_clusters=fit_n_clus).fit_predict(feature_weights)
     sort_ord = np.argsort(clus_num)
-    f, ax = plt.subplots(1, 2)
+    f, ax = plt.subplots(1, 3)
     ax[0].pcolor(feature_weights[sort_ord, :])
     if labels is not None:
         ax[0].set_xticks(np.arange(len(labels)) + 0.5, labels)
@@ -279,7 +279,7 @@ def plot_glm(feature_weights, model_r2s, labels=None, n_clusters=-1, r2_thresh=0
     ax[0].set_title(f'Feature Weights n_clusters = {fit_n_clus}')
     ax[1].stem(model_r2s[sort_ord], orientation='horizontal')
     ax[1].set_ylim(-0.5, len(model_r2s) - 0.5)
-
+    ax[2].imshow(clus_num[:, None], aspect='auto', interpolation='none')
     if sort_method in ['gmm', 'kmeans'] and n_clusters < 0:
         plt.figure()
         plt.plot(np.arange(1, max_c), bics, 'ko--')
