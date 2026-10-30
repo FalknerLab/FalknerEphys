@@ -258,7 +258,7 @@ def plot_glm(feature_weights, model_r2s, labels=None, n_clusters=-1, r2_thresh=0
                 test_gmm.fit(feature_weights)
                 bics.append(test_gmm.bic(feature_weights))
             fit_n_clus = np.argmin(np.array(bics)) + 1
-        clus_num = GaussianMixture(n_components=n_clusters).fit_predict(feature_weights)
+        clus_num = GaussianMixture(n_components=fit_n_clus).fit_predict(feature_weights)
     if sort_method == 'max':
         clus_num = np.argmax(feature_weights, axis=1)
     if sort_method == 'agg':
