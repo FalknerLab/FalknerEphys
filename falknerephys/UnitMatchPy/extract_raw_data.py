@@ -5,7 +5,7 @@ import numpy as np
 from scipy.ndimage import gaussian_filter
 from mtscomp import decompress
 from joblib import Parallel, delayed
-import utils as util
+import falknerephys.UnitMatchPy.utils as util
 
 #Decompressed data functions
 def read_meta(meta_path):

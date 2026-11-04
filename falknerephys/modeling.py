@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import to_rgb
 import sklearn
 from sklearn import svm
-from sklearn.model_selection import RepeatedKFold
+from sklearn.model_selection import RepeatedKFold, KFold
 from sklearn.base import clone
 from sklearn.decomposition import PCA
 from sklearn.linear_model import TweedieRegressor, BayesianRidge, LogisticRegression, LinearRegression
@@ -100,22 +100,25 @@ def make_design_matrix(behav_mat, pred_type=None, fs=30, time_width_ms=250):
 
 
 def run_reg_decoder(x_data, target_vars, model='glm', k=5, categorical=False, train_inds=None, test_inds=None,
-                    stratify=False, test_stat='mse', max_iter=1000):
-    if test_inds is None:
-        if stratify:
-            train_input, test_input, train_output, test_output = train_test_split(x_data, target_vars, test_size=0.2,
-                                                                                  random_state=42, stratify=target_vars)
+                    stratify=False, test_stat='r2', max_iter=1000, cv=5, selection='max'):
+
+    x_inds = np.arange(len(x_data))
+    fold_inds = []
+    if test_inds is None and train_inds is None:
+        if cv > 1:
+            kf = KFold(n_splits=cv, shuffle=True, random_state=42)
+            fold_inds = [(train_inds, test_inds) for train_inds, test_inds in kf.split(x_inds)]
+        elif stratify:
+            train_inds, test_inds = train_test_split(x_inds, test_size=0.2, random_state=42, stratify=target_vars)
         else:
-            train_input, test_input, train_output, test_output = train_test_split(x_data, target_vars, test_size=0.2,
-                                                                                  random_state=42)
+            train_inds, test_inds = train_test_split(x_inds, test_size=0.2, random_state=42)
+    elif train_inds is None and test_inds is not None:
+        train_inds = np.delete(x_inds, test_inds)
     else:
-        test_input = x_data[test_inds]
-        test_output = target_vars[test_inds]
-        train_input = np.delete(x_data, test_inds, axis=0)
-        train_output = np.delete(target_vars, test_inds, axis=0)
-    if train_inds is not None:
-        train_input = x_data[train_inds]
-        train_output = target_vars[train_inds]
+        test_inds = np.delete(x_inds, train_inds)
+
+    if len(fold_inds) == 0:
+        fold_inds.append((train_inds, test_inds))
 
     model_obj = None
     if type(model) == str:
@@ -137,23 +140,51 @@ def run_reg_decoder(x_data, target_vars, model='glm', k=5, categorical=False, tr
         model_obj = model
     if target_vars.ndim > 1:
         model_obj = MultiOutputRegressor(model_obj)
-    model_obj.fit(train_input, train_output)
-    test_pred = model_obj.predict(test_input)
-    pred_all = model_obj.predict(x_data)
-    test_val = None
-    if test_stat == 'mse':
-        test_val = mean_squared_error(test_output, test_pred)
-    elif test_stat == 'r2':
-        test_val = r2_score(test_output, test_pred)
-    f1 = None
-    acc = None
-    if categorical:
-        f1 = f1_score(test_output, test_pred, average='weighted')
-        test_c = np.argmax(test_output, axis=1)
-        pred_c = np.argmax(test_pred, axis=1)
-        acc = [100*np.sum(test_c[pred_c == i] == i)/len(test_c[pred_c == i]) for i in range(4)]
 
-    return model_obj, pred_all, test_val, f1, test_output, test_pred, acc, train_input, test_input
+    predict_out = np.nan * np.zeros_like(target_vars)
+    test_val_list = []
+    model_list = []
+    for train_idx, test_idx in fold_inds:
+        temp_model = sklearn.clone(model_obj)
+        temp_model.fit(x_data[train_idx, :], target_vars[train_idx])
+        test_pred = temp_model.predict(x_data[test_idx, :])
+        predict_out[test_idx] = test_pred
+        test_output = target_vars[test_idx]
+        test_val = np.nan
+        if categorical:
+            if test_stat == 'f1':
+                test_val = f1_score(test_output, test_pred, average='weighted')
+            if test_stat == 'acc':
+                test_c = np.argmax(test_output, axis=1)
+                pred_c = np.argmax(test_pred, axis=1)
+                test_val = [100*np.sum(test_c[pred_c == i] == i)/len(test_c[pred_c == i]) for i in range(4)]
+        else:
+            if test_stat == 'mse':
+                test_val = mean_squared_error(test_output, test_pred)
+            elif test_stat == 'r2':
+                test_val = r2_score(test_output, test_pred)
+        test_val_list.append(test_val)
+        model_list.append(temp_model)
+
+    if target_vars.ndim > 1:
+        model_coefs = [mc.coef_ for mc in model_list[0].estimators_]
+    else:
+        model_coefs = model_list[0].coef_
+    best_val = test_val_list[0]
+    match selection:
+        case 'max':
+            best_val = np.max(test_val_list)
+            if target_vars.ndim > 1:
+                model_coefs = [mc.coef_ for mc in model_list[np.argmax(test_val_list)].estimators_]
+            else:
+                model_coefs = model_list[np.argmax(test_val_list)].coef_
+        case 'mean':
+            best_val = np.mean(test_val_list)
+            if target_vars.ndim > 1:
+                model_coefs = np.mean([[mc.coef_ for mc in thism.estimators_] for thism in model_list], axis=0)
+            else:
+                model_coefs = np.mean([m.coef_ for m in model_list], axis=0)
+    return model_coefs, predict_out, best_val
 
 
 def run_pred_randshuf(u_data, cat_data, k=3, chk_sz=300, rand_state=42, test_ratio=0.2, model=None, num_shufs=20, categorical=False):
@@ -553,3 +584,13 @@ def get_states(x, x_lims=None, num_states=10):
     else:
         states_x = states_x[:, 0]
     return states_x, total_bins
+
+
+if __name__ == '__main__':
+    this_x = np.arange(200)[:, None] + np.random.randint(0, 3, (200, 2))
+    this_y = np.arange(200)[:, None] + 0.1*np.random.randint(0, 5, 200)[:, None]
+    model_o, held_output, model_eval = run_reg_decoder(this_x, this_y, cv=5, selection='mean')
+    plt.plot(this_y)
+    plt.plot(held_output)
+    print(model_o, model_eval)
+    plt.show()
