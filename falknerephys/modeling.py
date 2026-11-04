@@ -3,6 +3,7 @@ import time
 from copy import deepcopy
 
 import numpy as np
+from joblib import Parallel, delayed
 from numpy.random import Generator, PCG64
 import matplotlib.pyplot as plt
 from matplotlib.colors import to_rgb
@@ -99,7 +100,7 @@ def make_design_matrix(behav_mat, pred_type=None, fs=30, time_width_ms=250):
     return design_mat
 
 
-def run_reg_decoder(x_data, target_vars, model='glm', k=5, categorical=False, train_inds=None, test_inds=None,
+def run_reg_decoder_old(x_data, target_vars, model='glm', k=5, categorical=False, train_inds=None, test_inds=None,
                     stratify=False, test_stat='r2', max_iter=1000, cv=5, selection='max'):
 
     x_inds = np.arange(len(x_data))
@@ -114,7 +115,7 @@ def run_reg_decoder(x_data, target_vars, model='glm', k=5, categorical=False, tr
             train_inds, test_inds = train_test_split(x_inds, test_size=0.2, random_state=42)
     elif train_inds is None and test_inds is not None:
         train_inds = np.delete(x_inds, test_inds)
-    else:
+    elif train_inds is not None and test_inds is None:
         test_inds = np.delete(x_inds, train_inds)
 
     if len(fold_inds) == 0:
@@ -186,6 +187,107 @@ def run_reg_decoder(x_data, target_vars, model='glm', k=5, categorical=False, tr
                 model_coefs = np.mean([m.coef_ for m in model_list], axis=0)
     return model_coefs, predict_out, best_val
 
+
+def _fit_eval_fold(model_obj, x_data, target_vars, train_idx, test_idx,
+                   categorical, test_stat):
+    temp_model = sklearn.clone(model_obj)
+    temp_model.fit(x_data[train_idx, :], target_vars[train_idx])
+    test_pred = temp_model.predict(x_data[test_idx, :])
+    test_output = target_vars[test_idx]
+
+    test_val = np.nan
+    if categorical:
+        if test_stat == 'f1':
+            test_val = f1_score(test_output, test_pred, average='weighted')
+        if test_stat == 'acc':
+            test_c = np.argmax(test_output, axis=1)
+            pred_c = np.argmax(test_pred, axis=1)
+            test_val = [100 * np.sum(test_c[pred_c == i] == i) / len(test_c[pred_c == i])
+                        for i in range(4)]
+    else:
+        if test_stat == 'mse':
+            test_val = mean_squared_error(test_output, test_pred)
+        elif test_stat == 'r2':
+            test_val = r2_score(test_output, test_pred)
+
+    return test_idx, test_pred, test_val, temp_model
+
+
+def run_reg_decoder(x_data, target_vars, model='glm', k=5, categorical=False, train_inds=None, test_inds=None,
+                    stratify=False, test_stat='r2', max_iter=1000, cv=5, selection='max', n_jobs=8):
+
+    x_inds = np.arange(len(x_data))
+    fold_inds = []
+    if test_inds is None and train_inds is None:
+        if cv > 1:
+            kf = KFold(n_splits=cv, shuffle=True, random_state=42)
+            fold_inds = [(train_inds, test_inds) for train_inds, test_inds in kf.split(x_inds)]
+        elif stratify:
+            train_inds, test_inds = train_test_split(x_inds, test_size=0.2, random_state=42, stratify=target_vars)
+        else:
+            train_inds, test_inds = train_test_split(x_inds, test_size=0.2, random_state=42)
+    elif train_inds is None and test_inds is not None:
+        train_inds = np.delete(x_inds, test_inds)
+    elif train_inds is not None and test_inds is None:
+        test_inds = np.delete(x_inds, train_inds)
+
+    if len(fold_inds) == 0:
+        fold_inds.append((train_inds, test_inds))
+
+    model_obj = None
+    if type(model) == str:
+        if model == 'svm':
+            model_obj = svm.SVR(kernel='linear')
+            if categorical:
+                model_obj = svm.SVC(kernel='linear')
+        elif model == 'glm':
+            model_obj = TweedieRegressor(power=1, alpha=0.05, link='log', max_iter=max_iter)
+        elif model == 'bayes':
+            model_obj = BayesianRidge(max_iter=max_iter)
+        elif model == 'knn':
+            model_obj = KNeighborsClassifier(n_neighbors=k, n_jobs=-1, weights='distance')
+        elif model == 'logistic':
+            model_obj = LogisticRegression(max_iter=max_iter)
+        elif model == 'ols':
+            model_obj = LinearRegression()
+    else:
+        model_obj = model
+    if target_vars.ndim > 1:
+        model_obj = MultiOutputRegressor(model_obj)
+
+    predict_out = np.nan * np.zeros_like(target_vars)
+
+    results = Parallel(n_jobs=min(n_jobs, len(fold_inds)) if n_jobs > 0 else n_jobs)(
+        delayed(_fit_eval_fold)(model_obj, x_data, target_vars, tr, te,
+                                categorical, test_stat)
+        for tr, te in fold_inds
+    )
+
+    test_val_list, model_list = [], []
+    for test_idx, test_pred, test_val, temp_model in results:
+        predict_out[test_idx] = test_pred
+        test_val_list.append(test_val)
+        model_list.append(temp_model)
+
+    if target_vars.ndim > 1:
+        model_coefs = [mc.coef_ for mc in model_list[0].estimators_]
+    else:
+        model_coefs = model_list[0].coef_
+    best_val = test_val_list[0]
+    match selection:
+        case 'max':
+            best_val = np.max(test_val_list)
+            if target_vars.ndim > 1:
+                model_coefs = [mc.coef_ for mc in model_list[np.argmax(test_val_list)].estimators_]
+            else:
+                model_coefs = model_list[np.argmax(test_val_list)].coef_
+        case 'mean':
+            best_val = np.mean(test_val_list)
+            if target_vars.ndim > 1:
+                model_coefs = np.mean([[mc.coef_ for mc in thism.estimators_] for thism in model_list], axis=0)
+            else:
+                model_coefs = np.mean([m.coef_ for m in model_list], axis=0)
+    return model_coefs, predict_out, best_val
 
 def run_pred_randshuf(u_data, cat_data, k=3, chk_sz=300, rand_state=42, test_ratio=0.2, model=None, num_shufs=20, categorical=False):
     if model is None:
