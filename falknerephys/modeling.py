@@ -220,7 +220,7 @@ def run_reg_decoder(x_data, target_vars, model='glm', k=5, categorical=False, tr
     fold_inds = []
     if test_inds is None and train_inds is None:
         if cv > 1:
-            kf = KFold(n_splits=cv, shuffle=True, random_state=42)
+            kf = KFold(n_splits=cv, shuffle=False, random_state=42)
             fold_inds = [(train_inds, test_inds) for train_inds, test_inds in kf.split(x_inds)]
         elif stratify:
             train_inds, test_inds = train_test_split(x_inds, test_size=0.2, random_state=42, stratify=target_vars)
@@ -689,8 +689,8 @@ def get_states(x, x_lims=None, num_states=10):
 
 
 if __name__ == '__main__':
-    this_x = np.arange(200)[:, None] + np.random.randint(0, 3, (200, 2))
-    this_y = np.arange(200)[:, None] + 0.1*np.random.randint(0, 5, 200)[:, None]
+    this_x = np.arange(20)[:, None] + np.random.randint(0, 3, (20, 2))
+    this_y = np.arange(20)[:, None] + 0.1*np.random.randint(0, 5, (20, 8))
     model_o, held_output, model_eval = run_reg_decoder(this_x, this_y, cv=5, selection='mean')
     plt.plot(this_y)
     plt.plot(held_output)
