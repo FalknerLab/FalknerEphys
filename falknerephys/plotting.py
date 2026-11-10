@@ -270,7 +270,7 @@ def plot_glm(feature_weights, model_r2s, labels=None, n_clusters=-1, r2_thresh=0
                 knn_intertia = KMeans(n_clusters=c, random_state=42).fit(feature_weights).inertia_
                 bics.append(knn_intertia)
             fit_n_clus = np.argmin(np.array(bics)) + 1
-        clus_num = KMeans(n_clusters=fit_n_clus).fit_predict(feature_weights)
+        clus_num = KMeans(n_clusters=fit_n_clus, random_state=42).fit_predict(feature_weights)
     if len(clus_ord) == n_clusters:
         sort_dict = {}
         for i in range(n_clusters):
