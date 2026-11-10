@@ -291,7 +291,7 @@ def plot_glm(feature_weights, model_r2s, labels=None, n_clusters=-1, r2_thresh=0
         plt.figure()
         plt.plot(np.arange(1, max_c), bics, 'ko--')
 
-    return clus_num, sort_ord
+    return clus_num, sort_ord, ax
 
 
 def plot_confusion_matrix(conf_mat, class_names=None, axs=None, cmap='OrRd', vmin=0, vmax=1):
