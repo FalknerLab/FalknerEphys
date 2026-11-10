@@ -279,7 +279,8 @@ def plot_glm(feature_weights, model_r2s, labels=None, n_clusters=-1, r2_thresh=0
         clus_num = np.array(new_clus_num)
     sort_ord = np.argsort(clus_num)
     f, ax = plt.subplots(1, 3)
-    ax[0].pcolor(feature_weights[sort_ord, :], cmap='coolwarm', vmin=vmin, vmax=vmax)
+    ax[0].imshow(feature_weights[sort_ord, :], cmap='coolwarm', vmin=vmin, vmax=vmax, origin='lower', aspect='auto',
+                 interpolation='none', rasterized=True)
     if labels is not None:
         ax[0].set_xticks(np.arange(len(labels)) + 0.5, labels)
         ax[0].tick_params(axis='x', labelrotation=90)
