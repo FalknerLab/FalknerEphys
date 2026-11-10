@@ -276,7 +276,7 @@ def plot_glm(feature_weights, model_r2s, labels=None, n_clusters=-1, r2_thresh=0
         for i in range(n_clusters):
             sort_dict[i] = clus_ord[i]
         new_clus_num = [sort_dict[e] for e in clus_num]
-        clus_num = new_clus_num
+        clus_num = np.array(new_clus_num)
     sort_ord = np.argsort(clus_num)
     f, ax = plt.subplots(1, 3)
     ax[0].pcolor(feature_weights[sort_ord, :], cmap='coolwarm', vmin=vmin, vmax=vmax)
