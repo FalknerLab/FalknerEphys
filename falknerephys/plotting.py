@@ -245,7 +245,8 @@ def plot_waveforms(wf_mat, chan_pos, ax=None, col='k'):
     ax.plot(x[:, good_ts], y[:, good_ts], color=col)
 
 
-def plot_glm(feature_weights, model_r2s, labels=None, n_clusters=-1, r2_thresh=0.0, max_c=15, sort_method='gmm'):
+def plot_glm(feature_weights, model_r2s, labels=None, n_clusters=-1, r2_thresh=0.0, max_c=15, sort_method='gmm',
+             clus_ord=(), vmin=0, vmax=0.5):
     feature_weights = feature_weights[model_r2s > r2_thresh, :]
     model_r2s = model_r2s[model_r2s > r2_thresh]
     bics = []
@@ -270,16 +271,22 @@ def plot_glm(feature_weights, model_r2s, labels=None, n_clusters=-1, r2_thresh=0
                 bics.append(knn_intertia)
             fit_n_clus = np.argmin(np.array(bics)) + 1
         clus_num = KMeans(n_clusters=fit_n_clus).fit_predict(feature_weights)
+    if len(clus_ord) == n_clusters:
+        sort_dict = {}
+        for i in range(n_clusters):
+            sort_dict[i] = clus_ord[i]
+        new_clus_num = [sort_dict[e] for e in clus_num]
+        clus_num = new_clus_num
     sort_ord = np.argsort(clus_num)
     f, ax = plt.subplots(1, 3)
-    ax[0].pcolor(feature_weights[sort_ord, :])
+    ax[0].pcolor(feature_weights[sort_ord, :], cmap='coolwarm', vmin=vmin, vmax=vmax)
     if labels is not None:
         ax[0].set_xticks(np.arange(len(labels)) + 0.5, labels)
         ax[0].tick_params(axis='x', labelrotation=90)
     ax[0].set_title(f'Feature Weights n_clusters = {fit_n_clus}')
     ax[1].stem(model_r2s[sort_ord], orientation='horizontal')
     ax[1].set_ylim(-0.5, len(model_r2s) - 0.5)
-    ax[2].imshow(clus_num[sort_ord, None], aspect='auto', interpolation='none')
+    ax[2].imshow(clus_num[sort_ord, None], aspect='auto', interpolation='none', origin='lower', cmap='Set3')
     if sort_method in ['gmm', 'kmeans'] and n_clusters < 0:
         plt.figure()
         plt.plot(np.arange(1, max_c), bics, 'ko--')
