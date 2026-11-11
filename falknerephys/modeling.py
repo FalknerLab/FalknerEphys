@@ -214,13 +214,16 @@ def _fit_eval_fold(model_obj, x_data, target_vars, train_idx, test_idx,
 
 
 def run_reg_decoder(x_data, target_vars, model='glm', k=5, categorical=False, train_inds=None, test_inds=None,
-                    stratify=False, test_stat='r2', max_iter=1000, cv=5, selection='max', n_jobs=8):
+                    stratify=False, test_stat='r2', max_iter=1000, cv=5, selection='max', n_jobs=8, shuffle=False):
 
     x_inds = np.arange(len(x_data))
     fold_inds = []
     if test_inds is None and train_inds is None:
         if cv > 1:
-            kf = KFold(n_splits=cv, shuffle=False, random_state=42)
+            if shuffle:
+                kf = KFold(n_splits=cv, shuffle=True, random_state=42)
+            else:
+                kf = KFold(n_splits=cv, shuffle=False)
             fold_inds = [(train_inds, test_inds) for train_inds, test_inds in kf.split(x_inds)]
         elif stratify:
             train_inds, test_inds = train_test_split(x_inds, test_size=0.2, random_state=42, stratify=target_vars)
